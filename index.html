@@ -106,6 +106,56 @@
     font-size: 12px;
     color: var(--muted);
   }
+  .filters{
+    display:flex;
+    flex-wrap: wrap;
+    gap: 28px;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+  }
+  .filter-group{
+    display:flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .filter-label{
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--muted);
+    font-weight: 600;
+  }
+  .filter-options{
+    display:flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .chip{
+    display:flex;
+    align-items:center;
+    gap: 7px;
+    padding: 6px 12px 6px 10px;
+    border-radius: 999px;
+    border: 1.5px solid var(--border);
+    cursor: pointer;
+    font-size: 13px;
+    background: var(--card);
+    user-select: none;
+    transition: border-color 0.15s, opacity 0.15s;
+  }
+  .chip.off{
+    opacity: 0.4;
+  }
+  .chip input{
+    display:none;
+  }
+  .chip .dot{
+    width: 9px; height: 9px; border-radius: 50%; flex-shrink:0;
+  }
+  .chip .line-swatch{
+    width: 14px; height: 2px; flex-shrink:0;
+  }
 </style>
 </head>
 <body>
@@ -114,23 +164,27 @@
   <p class="subtitle">Completion date vs. lead time (days), colored by declared size. Dashed lines mark the 50th, 85th, and 95th percentiles.</p>
 
   <div class="card">
-    <div class="chart-container">
-      <canvas id="scatterChart"></canvas>
+    <div class="filters">
+      <div class="filter-group">
+        <span class="filter-label">Ticket size</span>
+        <div class="filter-options" id="sizeFilters">
+          <label class="chip" data-size="S"><input type="checkbox" checked><span class="dot" style="background:var(--s-color)"></span>S — Small</label>
+          <label class="chip" data-size="M"><input type="checkbox" checked><span class="dot" style="background:var(--m-color)"></span>M — Medium</label>
+          <label class="chip" data-size="L"><input type="checkbox" checked><span class="dot" style="background:var(--l-color)"></span>L — Large</label>
+        </div>
+      </div>
+      <div class="filter-group">
+        <span class="filter-label">Percentile scenario</span>
+        <div class="filter-options" id="percentileFilters">
+          <label class="chip" data-pct="p50"><input type="checkbox" checked><span class="line-swatch" style="background:var(--p50)"></span>50th (<span class="pval" data-pct-val="p50"></span>d)</label>
+          <label class="chip" data-pct="p85"><input type="checkbox" checked><span class="line-swatch" style="background:var(--p85)"></span>85th (<span class="pval" data-pct-val="p85"></span>d)</label>
+          <label class="chip" data-pct="p95"><input type="checkbox" checked><span class="line-swatch" style="background:var(--p95)"></span>95th (<span class="pval" data-pct-val="p95"></span>d)</label>
+        </div>
+      </div>
     </div>
 
-    <div class="legend">
-      <div class="legend-group">
-        <span class="legend-label">Declared size</span>
-        <div class="legend-item"><span class="dot" style="background:var(--s-color)"></span> S — Small</div>
-        <div class="legend-item"><span class="dot" style="background:var(--m-color)"></span> M — Medium</div>
-        <div class="legend-item"><span class="dot" style="background:var(--l-color)"></span> L — Large</div>
-      </div>
-      <div class="legend-group">
-        <span class="legend-label">Percentile scenarios</span>
-        <div class="legend-item"><span class="line-swatch" style="background:var(--p50)"></span> 50th percentile</div>
-        <div class="legend-item"><span class="line-swatch" style="background:var(--p85)"></span> 85th percentile</div>
-        <div class="legend-item"><span class="line-swatch" style="background:var(--p95)"></span> 95th percentile</div>
-      </div>
+    <div class="chart-container">
+      <canvas id="scatterChart"></canvas>
     </div>
 
     <div class="stats" id="statBox"></div>
@@ -158,8 +212,13 @@ const p95 = 197.75;
 const minDate = rows[0][0];
 const maxDate = rows[rows.length - 1][0];
 
+document.querySelectorAll('.pval').forEach(el => {
+  const key = el.getAttribute('data-pct-val');
+  el.textContent = { p50, p85, p95 }[key];
+});
+
 const ctx = document.getElementById('scatterChart').getContext('2d');
-new Chart(ctx, {
+const chart = new Chart(ctx, {
   type: 'scatter',
   data: {
     datasets: [
@@ -252,15 +311,64 @@ new Chart(ctx, {
   }
 });
 
-// Stats box
-const allLeads = rows.map(r => r[2]);
-const avg = (allLeads.reduce((a,b)=>a+b,0)/allLeads.length).toFixed(1);
-const max = Math.max(...allLeads);
-document.getElementById('statBox').innerHTML = `
-  <div class="stat"><div class="num">${allLeads.length}</div><div class="lbl">Orders</div></div>
-  <div class="stat"><div class="num">${avg}d</div><div class="lbl">Average lead time</div></div>
-  <div class="stat"><div class="num">${max}d</div><div class="lbl">Max lead time</div></div>
-`;
+// Dataset index map
+const sizeDatasetIndex = { S: 0, M: 1, L: 2 };
+const pctDatasetIndex = { p50: 3, p85: 4, p95: 5 };
+
+function updateStats() {
+  const activeSizes = Array.from(document.querySelectorAll('#sizeFilters .chip'))
+    .filter(chip => chip.querySelector('input').checked)
+    .map(chip => chip.getAttribute('data-size'));
+
+  const activeLeads = rows.filter(r => activeSizes.includes(r[1])).map(r => r[2]);
+
+  if (activeLeads.length === 0) {
+    document.getElementById('statBox').innerHTML = `
+      <div class="stat"><div class="num">0</div><div class="lbl">Orders</div></div>
+      <div class="stat"><div class="num">—</div><div class="lbl">Average lead time</div></div>
+      <div class="stat"><div class="num">—</div><div class="lbl">Max lead time</div></div>
+    `;
+    return;
+  }
+
+  const avg = (activeLeads.reduce((a,b)=>a+b,0)/activeLeads.length).toFixed(1);
+  const max = Math.max(...activeLeads);
+  document.getElementById('statBox').innerHTML = `
+    <div class="stat"><div class="num">${activeLeads.length}</div><div class="lbl">Orders shown</div></div>
+    <div class="stat"><div class="num">${avg}d</div><div class="lbl">Average lead time</div></div>
+    <div class="stat"><div class="num">${max}d</div><div class="lbl">Max lead time</div></div>
+  `;
+}
+
+// Filter interactivity
+document.querySelectorAll('#sizeFilters .chip').forEach(chip => {
+  const size = chip.getAttribute('data-size');
+  const input = chip.querySelector('input');
+  chip.addEventListener('click', (e) => {
+    e.preventDefault();
+    input.checked = !input.checked;
+    chip.classList.toggle('off', !input.checked);
+    const idx = sizeDatasetIndex[size];
+    chart.setDatasetVisibility(idx, input.checked);
+    chart.update();
+    updateStats();
+  });
+});
+
+document.querySelectorAll('#percentileFilters .chip').forEach(chip => {
+  const pct = chip.getAttribute('data-pct');
+  const input = chip.querySelector('input');
+  chip.addEventListener('click', (e) => {
+    e.preventDefault();
+    input.checked = !input.checked;
+    chip.classList.toggle('off', !input.checked);
+    const idx = pctDatasetIndex[pct];
+    chart.setDatasetVisibility(idx, input.checked);
+    chart.update();
+  });
+});
+
+updateStats();
 </script>
 </body>
 </html>
