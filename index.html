@@ -3,8 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <title>Lead Times 2024–25 — Scatter Plot</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/chartjs-adapter-date-fns/3.0.0/chartjs-adapter-date-fns.bundle.min.js"></script>
 <style>
   :root{
     --bg: #f7f7f5;
@@ -27,84 +25,15 @@
     color: var(--ink);
     padding: 32px 20px;
   }
-  .wrap{
-    max-width: 1100px;
-    margin: 0 auto;
-  }
-  h1{
-    font-size: 22px;
-    font-weight: 700;
-    margin: 0 0 4px;
-  }
-  .subtitle{
-    color: var(--muted);
-    font-size: 14px;
-    margin: 0 0 24px;
-  }
+  .wrap{ max-width: 1100px; margin: 0 auto; }
+  h1{ font-size: 22px; font-weight: 700; margin: 0 0 4px; }
+  .subtitle{ color: var(--muted); font-size: 14px; margin: 0 0 24px; }
   .card{
     background: var(--card);
     border: 1px solid var(--border);
     border-radius: 12px;
     padding: 24px;
     box-shadow: 0 1px 2px rgba(0,0,0,0.04);
-  }
-  .chart-container{
-    position: relative;
-    height: 480px;
-  }
-  .legend{
-    display:flex;
-    flex-wrap: wrap;
-    gap: 20px;
-    margin-top: 20px;
-    padding-top: 16px;
-    border-top: 1px solid var(--border);
-    font-size: 13px;
-  }
-  .legend-group{
-    display:flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-  .legend-label{
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--muted);
-    font-weight: 600;
-    margin-bottom: 2px;
-  }
-  .legend-item{
-    display:flex;
-    align-items:center;
-    gap:8px;
-  }
-  .dot{
-    width: 10px; height: 10px; border-radius: 50%;
-    display:inline-block;
-  }
-  .line-swatch{
-    width: 16px; height: 2px; display:inline-block;
-  }
-  .stats{
-    display:grid;
-    grid-template-columns: repeat(3,1fr);
-    gap: 12px;
-    margin-top: 20px;
-  }
-  .stat{
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px 14px;
-  }
-  .stat .num{
-    font-size: 20px;
-    font-weight: 700;
-  }
-  .stat .lbl{
-    font-size: 12px;
-    color: var(--muted);
   }
   .filters{
     display:flex;
@@ -114,48 +43,55 @@
     padding-bottom: 20px;
     border-bottom: 1px solid var(--border);
   }
-  .filter-group{
-    display:flex;
-    flex-direction: column;
-    gap: 10px;
-  }
+  .filter-group{ display:flex; flex-direction: column; gap: 10px; }
   .filter-label{
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--muted);
-    font-weight: 600;
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
+    color: var(--muted); font-weight: 600;
   }
-  .filter-options{
-    display:flex;
-    gap: 10px;
-    flex-wrap: wrap;
-  }
+  .filter-options{ display:flex; gap: 10px; flex-wrap: wrap; }
   .chip{
-    display:flex;
-    align-items:center;
-    gap: 7px;
-    padding: 6px 12px 6px 10px;
-    border-radius: 999px;
-    border: 1.5px solid var(--border);
-    cursor: pointer;
-    font-size: 13px;
-    background: var(--card);
-    user-select: none;
+    display:flex; align-items:center; gap: 7px;
+    padding: 6px 12px 6px 10px; border-radius: 999px;
+    border: 1.5px solid var(--border); cursor: pointer;
+    font-size: 13px; background: var(--card); user-select: none;
     transition: border-color 0.15s, opacity 0.15s;
   }
-  .chip.off{
-    opacity: 0.4;
+  .chip.off{ opacity: 0.4; }
+  .chip input{ display:none; }
+  .chip .dot{ width: 9px; height: 9px; border-radius: 50%; flex-shrink:0; }
+  .chip .line-swatch{ width: 14px; height: 2px; flex-shrink:0; }
+
+  .chart-container{ position: relative; width: 100%; }
+  svg{ width: 100%; height: auto; display:block; overflow: visible; font-family: inherit; }
+  .grid-line{ stroke: #eef0f2; stroke-width: 1; }
+  .axis-line{ stroke: #d1d5db; stroke-width: 1; }
+  .axis-label{ fill: var(--muted); font-size: 11px; }
+  .axis-title{ fill: var(--ink); font-size: 12px; font-weight: 600; }
+  .pct-line{ stroke-width: 2; stroke-dasharray: 6 4; fill:none; }
+  .pct-text{ font-size: 11px; font-weight: 600; }
+  .pt{ cursor: pointer; transition: r 0.1s; }
+  .pt:hover{ stroke: #111827; stroke-width: 2; }
+
+  .tooltip{
+    position: absolute;
+    pointer-events: none;
+    background: #111827;
+    color: #fff;
+    font-size: 12px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    transform: translate(-50%, -115%);
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.1s;
+    z-index: 10;
   }
-  .chip input{
-    display:none;
-  }
-  .chip .dot{
-    width: 9px; height: 9px; border-radius: 50%; flex-shrink:0;
-  }
-  .chip .line-swatch{
-    width: 14px; height: 2px; flex-shrink:0;
-  }
+  .tooltip.show{ opacity: 1; }
+
+  .stats{ display:grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-top: 20px; }
+  .stat{ background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+  .stat .num{ font-size: 20px; font-weight: 700; }
+  .stat .lbl{ font-size: 12px; color: var(--muted); }
 </style>
 </head>
 <body>
@@ -176,15 +112,15 @@
       <div class="filter-group">
         <span class="filter-label">Percentile scenario</span>
         <div class="filter-options" id="percentileFilters">
-          <label class="chip" data-pct="p50"><input type="checkbox" checked><span class="line-swatch" style="background:var(--p50)"></span>50th (<span class="pval" data-pct-val="p50"></span>d)</label>
-          <label class="chip" data-pct="p85"><input type="checkbox" checked><span class="line-swatch" style="background:var(--p85)"></span>85th (<span class="pval" data-pct-val="p85"></span>d)</label>
-          <label class="chip" data-pct="p95"><input type="checkbox" checked><span class="line-swatch" style="background:var(--p95)"></span>95th (<span class="pval" data-pct-val="p95"></span>d)</label>
+          <label class="chip" data-pct="p50"><input type="checkbox" checked><span class="line-swatch" style="background:var(--p50)"></span>50th (<span data-pct-val="p50"></span>d)</label>
+          <label class="chip" data-pct="p85"><input type="checkbox" checked><span class="line-swatch" style="background:var(--p85)"></span>85th (<span data-pct-val="p85"></span>d)</label>
+          <label class="chip" data-pct="p95"><input type="checkbox" checked><span class="line-swatch" style="background:var(--p95)"></span>95th (<span data-pct-val="p95"></span>d)</label>
         </div>
       </div>
     </div>
 
-    <div class="chart-container">
-      <canvas id="scatterChart"></canvas>
+    <div class="chart-container" id="chartContainer">
+      <div class="tooltip" id="tooltip"></div>
     </div>
 
     <div class="stats" id="statBox"></div>
@@ -194,143 +130,137 @@
 <script>
 const rows = [["2024-07-15","S",49.0],["2024-08-22","S",48.0],["2024-09-10","S",87.0],["2024-09-25","M",57.0],["2024-10-05","M",148.0],["2024-10-14","S",53.0],["2024-10-28","S",45.0],["2024-11-18","M",145.0],["2024-12-04","L",105.0],["2025-01-08","S",5.0],["2025-01-20","L",163.0],["2025-02-14","S",43.0],["2025-02-26","M",415.0],["2025-03-15","L",123.0],["2025-04-10","M",103.0],["2025-05-05","L",104.0],["2025-06-12","L",302.0],["2025-06-25","L",158.0],["2025-07-02","L",98.0],["2025-07-11","S",52.0],["2025-07-18","M",95.0],["2025-07-29","S",70.0],["2025-08-03","M",95.0],["2025-08-14","M",101.0],["2025-08-21","M",57.0],["2025-08-29","M",57.0],["2025-09-08","S",53.0],["2025-09-22","L",137.0],["2025-10-04","S",73.0],["2025-10-12","M",60.0],["2025-10-19","S",126.0],["2025-10-27","M",57.0],["2025-11-05","L",124.0],["2025-11-15","M",75.0],["2025-11-25","M",89.0],["2025-12-10","S",44.0]];
 
-const colors = { S: getComputedCssVar('--s-color'), M: getComputedCssVar('--m-color'), L: getComputedCssVar('--l-color') };
-function getComputedCssVar(name){
-  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-}
+const p50 = 88.0, p85 = 143.0, p95 = 197.75;
 
-const bySize = { S: [], M: [], L: [] };
-rows.forEach(([d, size, lead]) => {
-  bySize[size].push({ x: d, y: lead });
-});
+function cssVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+const colors = { S: cssVar('--s-color'), M: cssVar('--m-color'), L: cssVar('--l-color') };
+const pctColors = { p50: cssVar('--p50'), p85: cssVar('--p85'), p95: cssVar('--p95') };
 
-// Percentiles (precomputed from full dataset, 36 points)
-const p50 = 88.0;
-const p85 = 143.0;
-const p95 = 197.75;
-
-const minDate = rows[0][0];
-const maxDate = rows[rows.length - 1][0];
-
-document.querySelectorAll('.pval').forEach(el => {
+document.querySelectorAll('[data-pct-val]').forEach(el => {
   const key = el.getAttribute('data-pct-val');
   el.textContent = { p50, p85, p95 }[key];
 });
 
-const ctx = document.getElementById('scatterChart').getContext('2d');
-const chart = new Chart(ctx, {
-  type: 'scatter',
-  data: {
-    datasets: [
-      {
-        label: 'S — Small',
-        data: bySize.S,
-        backgroundColor: colors.S,
-        borderColor: colors.S,
-        pointRadius: 5,
-        pointHoverRadius: 7
-      },
-      {
-        label: 'M — Medium',
-        data: bySize.M,
-        backgroundColor: colors.M,
-        borderColor: colors.M,
-        pointRadius: 5,
-        pointHoverRadius: 7
-      },
-      {
-        label: 'L — Large',
-        data: bySize.L,
-        backgroundColor: colors.L,
-        borderColor: colors.L,
-        pointRadius: 5,
-        pointHoverRadius: 7
-      },
-      {
-        label: '50th percentile (' + p50 + 'd)',
-        type: 'line',
-        data: [{x: minDate, y: p50}, {x: maxDate, y: p50}],
-        borderColor: getComputedCssVar('--p50'),
-        borderWidth: 2,
-        borderDash: [6,4],
-        pointRadius: 0,
-        fill: false
-      },
-      {
-        label: '85th percentile (' + p85 + 'd)',
-        type: 'line',
-        data: [{x: minDate, y: p85}, {x: maxDate, y: p85}],
-        borderColor: getComputedCssVar('--p85'),
-        borderWidth: 2,
-        borderDash: [6,4],
-        pointRadius: 0,
-        fill: false
-      },
-      {
-        label: '95th percentile (' + p95 + 'd)',
-        type: 'line',
-        data: [{x: minDate, y: p95}, {x: maxDate, y: p95}],
-        borderColor: getComputedCssVar('--p95'),
-        borderWidth: 2,
-        borderDash: [6,4],
-        pointRadius: 0,
-        fill: false
-      }
-    ]
-  },
-  options: {
-    responsive: true,
-    maintainAspectRatio: false,
-    interaction: { mode: 'nearest', intersect: true },
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        callbacks: {
-          label: function(context) {
-            if (context.dataset.type === 'line') return context.dataset.label;
-            const size = context.dataset.label.split(' ')[0];
-            const d = context.raw.x;
-            return `${d} · Size ${size} · ${context.raw.y} days`;
-          }
-        }
-      }
-    },
-    scales: {
-      x: {
-        type: 'time',
-        time: { unit: 'month', tooltipFormat: 'MMM d, yyyy' },
-        title: { display: true, text: 'Completion Date' },
-        grid: { color: '#eef0f2' }
-      },
-      y: {
-        title: { display: true, text: 'Lead Time (days)' },
-        beginAtZero: true,
-        grid: { color: '#eef0f2' }
-      }
-    }
+// Parse dates to timestamps
+const parsed = rows.map(([d, size, lead]) => ({ date: new Date(d + 'T00:00:00'), size, lead }));
+const minTs = Math.min(...parsed.map(r => r.date.getTime()));
+const maxTs = Math.max(...parsed.map(r => r.date.getTime()));
+const maxLead = Math.max(...parsed.map(r => r.lead));
+
+const activeSizes = { S: true, M: true, L: true };
+const activePct = { p50: true, p85: true, p95: true };
+
+const container = document.getElementById('chartContainer');
+const tooltip = document.getElementById('tooltip');
+
+const W = 1000, H = 460;
+const marginL = 60, marginR = 20, marginT = 20, marginB = 50;
+const plotW = W - marginL - marginR;
+const plotH = H - marginT - marginB;
+
+function xScale(ts){ return marginL + ((ts - minTs) / (maxTs - minTs)) * plotW; }
+function yMaxVal(){ return Math.ceil((maxLead * 1.08) / 10) * 10; }
+function yScale(val){
+  const yMax = yMaxVal();
+  return marginT + plotH - (val / yMax) * plotH;
+}
+
+function monthLabel(ts){
+  const d = new Date(ts);
+  return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+}
+
+function buildMonthTicks(){
+  const ticks = [];
+  let cur = new Date(minTs);
+  cur.setDate(1);
+  const end = new Date(maxTs);
+  while (cur <= end) {
+    ticks.push(new Date(cur));
+    cur.setMonth(cur.getMonth() + 2); // every 2 months to avoid crowding
   }
-});
+  return ticks;
+}
 
-// Dataset index map
-const sizeDatasetIndex = { S: 0, M: 1, L: 2 };
-const pctDatasetIndex = { p50: 3, p85: 4, p95: 5 };
+function render(){
+  const yMax = yMaxVal();
+  const monthTicks = buildMonthTicks();
+  const yTicks = [];
+  const step = yMax / 5;
+  for (let i = 0; i <= 5; i++) yTicks.push(Math.round(step * i));
 
-function updateStats() {
-  const activeSizes = Array.from(document.querySelectorAll('#sizeFilters .chip'))
-    .filter(chip => chip.querySelector('input').checked)
-    .map(chip => chip.getAttribute('data-size'));
+  let svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">`;
 
-  const activeLeads = rows.filter(r => activeSizes.includes(r[1])).map(r => r[2]);
+  // gridlines (horizontal)
+  yTicks.forEach(t => {
+    const y = yScale(t);
+    svg += `<line class="grid-line" x1="${marginL}" y1="${y}" x2="${W-marginR}" y2="${y}"/>`;
+    svg += `<text class="axis-label" x="${marginL-10}" y="${y+4}" text-anchor="end">${t}</text>`;
+  });
 
+  // axes
+  svg += `<line class="axis-line" x1="${marginL}" y1="${marginT}" x2="${marginL}" y2="${marginT+plotH}"/>`;
+  svg += `<line class="axis-line" x1="${marginL}" y1="${marginT+plotH}" x2="${W-marginR}" y2="${marginT+plotH}"/>`;
+
+  // x ticks
+  monthTicks.forEach(d => {
+    const x = xScale(d.getTime());
+    svg += `<line class="grid-line" x1="${x}" y1="${marginT}" x2="${x}" y2="${marginT+plotH}"/>`;
+    svg += `<text class="axis-label" x="${x}" y="${marginT+plotH+18}" text-anchor="middle">${monthLabel(d.getTime())}</text>`;
+  });
+
+  // axis titles
+  svg += `<text class="axis-title" x="${marginL + plotW/2}" y="${H-6}" text-anchor="middle">Completion Date</text>`;
+  svg += `<text class="axis-title" transform="translate(16, ${marginT+plotH/2}) rotate(-90)" text-anchor="middle">Lead Time (days)</text>`;
+
+  // percentile lines
+  ['p50','p85','p95'].forEach(key => {
+    if (!activePct[key]) return;
+    const val = { p50, p85, p95 }[key];
+    if (val > yMax) return;
+    const y = yScale(val);
+    svg += `<line class="pct-line" x1="${marginL}" y1="${y}" x2="${W-marginR}" y2="${y}" stroke="${pctColors[key]}"/>`;
+    svg += `<text class="pct-text" x="${W-marginR-4}" y="${y-6}" text-anchor="end" fill="${pctColors[key]}">${key.replace('p','')}th — ${val}d</text>`;
+  });
+
+  // points
+  parsed.forEach((r, i) => {
+    if (!activeSizes[r.size]) return;
+    const x = xScale(r.date.getTime());
+    const y = yScale(r.lead);
+    svg += `<circle class="pt" data-i="${i}" cx="${x}" cy="${y}" r="5.5" fill="${colors[r.size]}" fill-opacity="0.85" stroke="${colors[r.size]}"/>`;
+  });
+
+  svg += `</svg>`;
+
+  container.querySelectorAll('svg').forEach(el => el.remove());
+  container.insertAdjacentHTML('afterbegin', svg);
+
+  container.querySelectorAll('.pt').forEach(circle => {
+    circle.addEventListener('mousemove', (e) => {
+      const i = +circle.getAttribute('data-i');
+      const r = parsed[i];
+      const dateStr = r.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      tooltip.textContent = `${dateStr} · Size ${r.size} · ${r.lead} days`;
+      const rect = container.getBoundingClientRect();
+      tooltip.style.left = (e.clientX - rect.left) + 'px';
+      tooltip.style.top = (e.clientY - rect.top) + 'px';
+      tooltip.classList.add('show');
+    });
+    circle.addEventListener('mouseleave', () => tooltip.classList.remove('show'));
+  });
+}
+
+function updateStats(){
+  const activeLeads = parsed.filter(r => activeSizes[r.size]).map(r => r.lead);
   if (activeLeads.length === 0) {
     document.getElementById('statBox').innerHTML = `
-      <div class="stat"><div class="num">0</div><div class="lbl">Orders</div></div>
+      <div class="stat"><div class="num">0</div><div class="lbl">Orders shown</div></div>
       <div class="stat"><div class="num">—</div><div class="lbl">Average lead time</div></div>
       <div class="stat"><div class="num">—</div><div class="lbl">Max lead time</div></div>
     `;
     return;
   }
-
   const avg = (activeLeads.reduce((a,b)=>a+b,0)/activeLeads.length).toFixed(1);
   const max = Math.max(...activeLeads);
   document.getElementById('statBox').innerHTML = `
@@ -340,17 +270,15 @@ function updateStats() {
   `;
 }
 
-// Filter interactivity
 document.querySelectorAll('#sizeFilters .chip').forEach(chip => {
   const size = chip.getAttribute('data-size');
   const input = chip.querySelector('input');
   chip.addEventListener('click', (e) => {
     e.preventDefault();
     input.checked = !input.checked;
+    activeSizes[size] = input.checked;
     chip.classList.toggle('off', !input.checked);
-    const idx = sizeDatasetIndex[size];
-    chart.setDatasetVisibility(idx, input.checked);
-    chart.update();
+    render();
     updateStats();
   });
 });
@@ -361,13 +289,13 @@ document.querySelectorAll('#percentileFilters .chip').forEach(chip => {
   chip.addEventListener('click', (e) => {
     e.preventDefault();
     input.checked = !input.checked;
+    activePct[pct] = input.checked;
     chip.classList.toggle('off', !input.checked);
-    const idx = pctDatasetIndex[pct];
-    chart.setDatasetVisibility(idx, input.checked);
-    chart.update();
+    render();
   });
 });
 
+render();
 updateStats();
 </script>
 </body>
