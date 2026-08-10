@@ -165,6 +165,13 @@
     text-align:left; padding: 8px 10px; font-size: 11px; color: var(--muted);
     text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--border);
   }
+  table.data-table th.sortable{
+    cursor: pointer; user-select: none; white-space: nowrap;
+  }
+  table.data-table th.sortable:hover{ color: var(--ink); }
+  table.data-table th.sortable .sort-arrow{
+    display: inline-block; width: 10px; font-size: 10px; color: var(--ink);
+  }
   table.data-table td{ padding: 7px 10px; border-bottom: 1px solid var(--border); }
   table.data-table tr.excluded-row{ opacity: 0.45; }
   table.data-table tr.excluded-row td{ text-decoration: line-through; }
@@ -323,10 +330,10 @@
       <table class="data-table" id="dataTable">
         <thead>
           <tr>
-            <th>Date</th>
-            <th>Size</th>
-            <th>Lead time (d)</th>
-            <th>Status</th>
+            <th class="sortable" data-sort="date">Date <span class="sort-arrow"></span></th>
+            <th class="sortable" data-sort="size">Size <span class="sort-arrow"></span></th>
+            <th class="sortable" data-sort="lead">Lead time (d) <span class="sort-arrow"></span></th>
+            <th class="sortable" data-sort="status">Status <span class="sort-arrow"></span></th>
             <th></th>
           </tr>
         </thead>
@@ -596,9 +603,26 @@ function renderDataTable(){
   const tbody = document.getElementById('dataTableBody');
   if (dataset.length === 0) {
     tbody.innerHTML = `<tr><td colspan="5"><div class="empty-note">No data points yet.</div></td></tr>`;
+    updateSortArrows();
     return;
   }
-  const sorted = [...dataset].sort((a,b) => a.date - b.date);
+
+  const { col, dir } = sortState;
+  const mult = dir === 'asc' ? 1 : -1;
+  const sorted = [...dataset].sort((a, b) => {
+    let av, bv;
+    switch (col) {
+      case 'size': av = a.size; bv = b.size; break;
+      case 'lead': av = a.lead; bv = b.lead; break;
+      case 'status': av = a.excluded ? 1 : 0; bv = b.excluded ? 1 : 0; break;
+      case 'date':
+      default: av = a.date.getTime(); bv = b.date.getTime(); break;
+    }
+    if (av < bv) return -1 * mult;
+    if (av > bv) return 1 * mult;
+    return 0;
+  });
+
   tbody.innerHTML = sorted.map(r => `
     <tr class="${r.excluded ? 'excluded-row' : ''}">
       <td>${r.dateStr}</td>
@@ -632,7 +656,35 @@ function renderDataTable(){
       render(); renderDataTable(); updateStats();
     });
   });
+
+  updateSortArrows();
 }
+
+let sortState = { col: 'date', dir: 'asc' };
+
+function updateSortArrows(){
+  document.querySelectorAll('th.sortable').forEach(th => {
+    const arrow = th.querySelector('.sort-arrow');
+    if (th.getAttribute('data-sort') === sortState.col) {
+      arrow.textContent = sortState.dir === 'asc' ? '▲' : '▼';
+    } else {
+      arrow.textContent = '';
+    }
+  });
+}
+
+document.querySelectorAll('th.sortable').forEach(th => {
+  th.addEventListener('click', () => {
+    const col = th.getAttribute('data-sort');
+    if (sortState.col === col) {
+      sortState.dir = sortState.dir === 'asc' ? 'desc' : 'asc';
+    } else {
+      sortState.col = col;
+      sortState.dir = 'asc';
+    }
+    renderDataTable();
+  });
+});
 
 // ---- Filter chip handlers ----
 document.querySelectorAll('#sizeFilters .chip').forEach(chip => {
