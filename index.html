@@ -180,6 +180,47 @@
   .toggle-btn.is-active{ background: #ecfdf5; border-color:#86efac; color:#166534; }
   .toggle-btn.is-excluded{ background: #fef2f2; border-color:#fca5a5; color:#991b1b; }
   .empty-note{ color: var(--muted); font-size: 13px; padding: 14px; text-align:center; }
+
+  .tabs{ display:flex; gap: 6px; margin-bottom: 16px; }
+  .tab-btn{
+    border: 1.5px solid var(--border); background: var(--card); color: var(--muted);
+    border-radius: 8px; padding: 7px 14px; font-size: 13px; font-weight:600;
+    cursor: pointer; font-family: inherit;
+  }
+  .tab-btn.active{ background: var(--accent); color:#fff; border-color: var(--accent); }
+  .tab-panel{ display:none; }
+  .tab-panel.active{ display:block; }
+
+  .dropzone{
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 22px;
+    text-align: center;
+    color: var(--muted);
+    font-size: 13px;
+    cursor: pointer;
+    background: var(--bg);
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .dropzone.drag-over{ border-color: var(--accent); background: #eef2ff; }
+  .dropzone strong{ color: var(--ink); }
+  .file-hint{ font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+  textarea.paste-area{
+    width: 100%; min-height: 120px; font-family: 'SFMono-Regular', Consolas, monospace;
+    font-size: 12.5px; border: 1.5px solid var(--border); border-radius: 8px;
+    padding: 10px; resize: vertical; color: var(--ink);
+  }
+
+  .import-summary{
+    margin-top: 14px; padding: 12px 14px; border-radius: 8px; font-size: 13px;
+    display:none;
+  }
+  .import-summary.show{ display:block; }
+  .import-summary.ok{ background: #ecfdf5; border: 1px solid #86efac; color:#166534; }
+  .import-summary.warn{ background: var(--warn-bg); border: 1px solid var(--warn-border); color: var(--warn-text); }
+  .import-summary ul{ margin: 6px 0 0; padding-left: 18px; }
+  .import-summary li{ margin-bottom: 2px; }
 </style>
 </head>
 <body>
@@ -232,27 +273,53 @@
 
   <div class="card">
     <h2>Manage data</h2>
-    <div class="add-form">
-      <div class="field">
-        <label>Completion date</label>
-        <input type="date" id="newDate">
-      </div>
-      <div class="field">
-        <label>Ticket size</label>
-        <select id="newSize">
-          <option value="S">S — Small</option>
-          <option value="M">M — Medium</option>
-          <option value="L">L — Large</option>
-        </select>
-      </div>
-      <div class="field">
-        <label>Lead time (days)</label>
-        <input type="number" id="newLead" min="0" step="1" placeholder="e.g. 60">
-      </div>
-      <button class="btn btn-primary" id="addBtn">+ Add data point</button>
+
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="manual">Add manually</button>
+      <button class="tab-btn" data-tab="file">Upload spreadsheet</button>
+      <button class="tab-btn" data-tab="paste">Paste data</button>
     </div>
 
-    <div class="data-table-wrap">
+    <div class="tab-panel active" id="tab-manual">
+      <div class="add-form" style="border-bottom:none; margin-bottom:0; padding-bottom:0;">
+        <div class="field">
+          <label>Completion date</label>
+          <input type="date" id="newDate">
+        </div>
+        <div class="field">
+          <label>Ticket size</label>
+          <select id="newSize">
+            <option value="S">S — Small</option>
+            <option value="M">M — Medium</option>
+            <option value="L">L — Large</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Lead time (days)</label>
+          <input type="number" id="newLead" min="0" step="1" placeholder="e.g. 60">
+        </div>
+        <button class="btn btn-primary" id="addBtn">+ Add data point</button>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-file">
+      <div class="dropzone" id="dropzone">
+        <div><strong>Click to choose a file</strong> or drag one here</div>
+        <div class="file-hint">.csv or .xlsx / .xls — columns: date, ticket size (S/M/L), lead time (days). Header row optional.</div>
+      </div>
+      <input type="file" id="fileInput" accept=".csv,.txt,.xlsx,.xls" style="display:none;">
+      <div class="import-summary" id="fileSummary"></div>
+    </div>
+
+    <div class="tab-panel" id="tab-paste">
+      <textarea class="paste-area" id="pasteArea" placeholder="2025-01-08,S,5&#10;2025-01-20,L,163&#10;...&#10;(one row per line — comma, semicolon or tab separated; header row optional)"></textarea>
+      <div style="margin-top:10px;">
+        <button class="btn btn-primary" id="pasteImportBtn">Import pasted data</button>
+      </div>
+      <div class="import-summary" id="pasteSummary"></div>
+    </div>
+
+    <div class="data-table-wrap" style="margin-top:18px;">
       <table class="data-table" id="dataTable">
         <thead>
           <tr>
@@ -632,6 +699,226 @@ document.getElementById('addBtn').addEventListener('click', () => {
   renderDataTable();
   updateStats();
 });
+
+// ---- Tabs ----
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.getAttribute('data-tab')).classList.add('active');
+  });
+});
+
+// ---- Shared row-parsing helpers ----
+const POLISH_MONTHS = {
+  'stycznia':1,'lutego':2,'marca':3,'kwietnia':4,'maja':5,'czerwca':6,
+  'lipca':7,'sierpnia':8,'wrzesnia':9,'września':9,'pazdziernika':10,'października':10,
+  'listopada':11,'grudnia':12
+};
+
+function parseFlexibleDate(raw){
+  if (raw == null) return null;
+  const s = String(raw).trim();
+  if (!s) return null;
+
+  // ISO / native-parseable formats (YYYY-MM-DD, MM/DD/YYYY, "Jan 5 2025", etc.)
+  const native = new Date(s);
+  if (!isNaN(native.getTime()) && /\d{4}/.test(s)) return native;
+
+  // "15 Lipca 2024" style (Polish)
+  const m = s.toLowerCase().match(/^(\d{1,2})\s+([a-ząćęłńóśźż]+)\s+(\d{4})$/i);
+  if (m) {
+    const day = parseInt(m[1], 10);
+    const month = POLISH_MONTHS[m[2]];
+    const year = parseInt(m[3], 10);
+    if (month) return new Date(year, month - 1, day);
+  }
+
+  // Excel serial date number (e.g. 45500)
+  if (/^\d{4,6}(\.\d+)?$/.test(s)) {
+    const serial = parseFloat(s);
+    if (serial > 20000 && serial < 60000) {
+      const epoch = new Date(Date.UTC(1899, 11, 30));
+      return new Date(epoch.getTime() + serial * 86400000);
+    }
+  }
+  return null;
+}
+
+function normalizeSize(raw){
+  if (raw == null) return null;
+  const s = String(raw).trim().toUpperCase();
+  if (['S','SMALL'].includes(s)) return 'S';
+  if (['M','MEDIUM','MED'].includes(s)) return 'M';
+  if (['L','LARGE'].includes(s)) return 'L';
+  return null;
+}
+
+function splitDelimited(text){
+  return text.split(/\r\n|\r|\n/).filter(line => line.trim() !== '');
+}
+
+function detectDelimiter(line){
+  if (line.includes('\t')) return '\t';
+  if (line.includes(';')) return ';';
+  return ',';
+}
+
+function looksLikeHeader(cells){
+  const joined = cells.join(' ').toLowerCase();
+  return /date|data|size|rozmiar|lead|czas|time/.test(joined) && !parseFlexibleDate(cells[0]);
+}
+
+// Parses raw 2D array of cells (already split into rows/cols) into {added, errors}
+function importRows(rowsOfCells){
+  let added = 0;
+  const errors = [];
+  let startIdx = 0;
+
+  if (rowsOfCells.length && looksLikeHeader(rowsOfCells[0])) {
+    // try to map header columns by name; fallback to positional 0,1,2
+    startIdx = 1;
+  }
+
+  for (let i = startIdx; i < rowsOfCells.length; i++) {
+    const cells = rowsOfCells[i];
+    if (!cells || cells.length < 3 || cells.every(c => String(c).trim() === '')) continue;
+
+    const [dateRaw, sizeRaw, leadRaw] = cells;
+    const date = parseFlexibleDate(dateRaw);
+    const size = normalizeSize(sizeRaw);
+    const lead = parseFloat(String(leadRaw).replace(',', '.'));
+
+    if (!date) { errors.push(`Row ${i+1}: couldn't parse date "${dateRaw}"`); continue; }
+    if (!size) { errors.push(`Row ${i+1}: invalid ticket size "${sizeRaw}" (expected S, M, or L)`); continue; }
+    if (isNaN(lead) || lead < 0) { errors.push(`Row ${i+1}: invalid lead time "${leadRaw}"`); continue; }
+
+    dataset.push({
+      id: nextId++,
+      dateStr: fmtDateInput(date),
+      date,
+      size,
+      lead,
+      excluded: false
+    });
+    added++;
+  }
+
+  return { added, errors };
+}
+
+function showSummary(elId, added, errors){
+  const el = document.getElementById(elId);
+  el.classList.remove('ok','warn');
+  el.classList.add('show', errors.length ? 'warn' : 'ok');
+  let html = `<strong>${added} row${added===1?'':'s'} imported.</strong>`;
+  if (errors.length) {
+    html += ` ${errors.length} row${errors.length===1?'':'s'} skipped.`;
+    html += `<ul>${errors.slice(0,8).map(e => `<li>${e}</li>`).join('')}</ul>`;
+    if (errors.length > 8) html += `<div>...and ${errors.length-8} more.</div>`;
+  }
+  el.innerHTML = html;
+}
+
+function finishImport(added){
+  if (added > 0) {
+    markStale();
+    render();
+    renderDataTable();
+    updateStats();
+    initDateRange(); // widen range if new dates fall outside current bounds — user can narrow again
+  }
+}
+
+// ---- Paste import ----
+document.getElementById('pasteImportBtn').addEventListener('click', () => {
+  const text = document.getElementById('pasteArea').value;
+  if (!text.trim()) { showSummary('pasteSummary', 0, ['No data entered.']); return; }
+  const lines = splitDelimited(text);
+  const delim = detectDelimiter(lines[0]);
+  const rowsOfCells = lines.map(l => l.split(delim).map(c => c.trim().replace(/^"|"$/g,'')));
+  const { added, errors } = importRows(rowsOfCells);
+  showSummary('pasteSummary', added, errors);
+  finishImport(added);
+  if (added) document.getElementById('pasteArea').value = '';
+});
+
+// ---- File import ----
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+
+dropzone.addEventListener('click', () => fileInput.click());
+dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('drag-over'); });
+dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag-over'));
+dropzone.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dropzone.classList.remove('drag-over');
+  if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', () => {
+  if (fileInput.files.length) handleFile(fileInput.files[0]);
+});
+
+let sheetJsLoadPromise = null;
+function loadSheetJS(){
+  if (window.XLSX) return Promise.resolve();
+  if (sheetJsLoadPromise) return sheetJsLoadPromise;
+  sheetJsLoadPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    const timeout = setTimeout(() => reject(new Error('timeout')), 8000);
+    script.onload = () => { clearTimeout(timeout); resolve(); };
+    script.onerror = () => { clearTimeout(timeout); reject(new Error('load failed')); };
+    document.head.appendChild(script);
+  });
+  return sheetJsLoadPromise;
+}
+
+function handleFile(file){
+  const name = file.name.toLowerCase();
+  if (name.endsWith('.csv') || name.endsWith('.txt')) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const lines = splitDelimited(String(e.target.result));
+      if (!lines.length) { showSummary('fileSummary', 0, ['File is empty.']); return; }
+      const delim = detectDelimiter(lines[0]);
+      const rowsOfCells = lines.map(l => l.split(delim).map(c => c.trim().replace(/^"|"$/g,'')));
+      const { added, errors } = importRows(rowsOfCells);
+      showSummary('fileSummary', added, errors);
+      finishImport(added);
+    };
+    reader.onerror = () => showSummary('fileSummary', 0, ['Could not read the file.']);
+    reader.readAsText(file);
+  } else if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+    showSummary('fileSummary', 0, []);
+    document.getElementById('fileSummary').innerHTML = 'Loading spreadsheet reader…';
+    document.getElementById('fileSummary').classList.add('show');
+    loadSheetJS().then(() => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array', cellDates: true });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const rowsOfCells = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, dateNF: 'yyyy-mm-dd' });
+          const { added, errors } = importRows(rowsOfCells);
+          showSummary('fileSummary', added, errors);
+          finishImport(added);
+        } catch (err) {
+          showSummary('fileSummary', 0, ['Could not parse this spreadsheet: ' + err.message]);
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    }).catch(() => {
+      document.getElementById('fileSummary').classList.add('warn');
+      document.getElementById('fileSummary').innerHTML =
+        `Couldn't load the spreadsheet reader (no internet access available right now). ` +
+        `Please export this file as <strong>.csv</strong> and upload that instead, or use the "Paste data" tab.`;
+    });
+  } else {
+    showSummary('fileSummary', 0, ['Unsupported file type. Please use .csv, .xlsx, or .xls.']);
+  }
+}
 
 // ---- Initial paint ----
 renderDataTable();
