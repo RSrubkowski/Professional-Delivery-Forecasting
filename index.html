@@ -69,6 +69,21 @@
   .chip .line-swatch.longdash{ border-top-style: dashed; border-top-width: 3px; }
 
   .date-range{ display:flex; gap: 10px; align-items:center; }
+  .quick-range{ display:flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+  .quick-btn{
+    border: 1.5px solid var(--border);
+    background: var(--card);
+    color: var(--muted);
+    border-radius: 999px;
+    padding: 4px 11px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+  }
+  .quick-btn:hover{ border-color: #9ca3af; color: var(--ink); }
+  .quick-btn.active{ background: var(--accent); border-color: var(--accent); color: #fff; }
   input[type="date"], input[type="number"], select{
     border: 1.5px solid var(--border);
     border-radius: 8px;
@@ -259,6 +274,14 @@
           <input type="date" id="dateFrom">
           <span style="color:var(--muted); font-size:13px;">to</span>
           <input type="date" id="dateTo">
+        </div>
+        <div class="quick-range" id="quickRange">
+          <button class="quick-btn" data-months="3">Last 3M</button>
+          <button class="quick-btn" data-months="6">Last 6M</button>
+          <button class="quick-btn" data-months="9">Last 9M</button>
+          <button class="quick-btn" data-months="12">Last 12M</button>
+          <button class="quick-btn" data-months="ytd">YTD</button>
+          <button class="quick-btn" data-months="all">All</button>
         </div>
       </div>
     </div>
@@ -715,9 +738,49 @@ document.querySelectorAll('#percentileFilters .chip').forEach(chip => {
 
 [dateFromInput, dateToInput].forEach(inp => {
   inp.addEventListener('change', () => {
+    clearQuickRangeActive();
     markStale();
     render();
     updateStats();
+  });
+});
+
+// ---- Quick date-range select ----
+function clearQuickRangeActive(){
+  document.querySelectorAll('.quick-btn').forEach(b => b.classList.remove('active'));
+}
+
+function applyQuickRange(months, btn){
+  if (dataset.length === 0) return;
+  const maxTs = Math.max(...dataset.map(r => r.date.getTime()));
+  const latest = new Date(maxTs);
+  let from;
+
+  if (months === 'all') {
+    const minTs = Math.min(...dataset.map(r => r.date.getTime()));
+    from = new Date(minTs);
+  } else if (months === 'ytd') {
+    from = new Date(latest.getFullYear(), 0, 1);
+  } else {
+    from = new Date(latest);
+    from.setMonth(from.getMonth() - parseInt(months, 10));
+    from.setDate(from.getDate() + 1);
+  }
+
+  dateFromInput.value = fmtDateInput(from);
+  dateToInput.value = fmtDateInput(latest);
+
+  clearQuickRangeActive();
+  btn.classList.add('active');
+
+  markStale();
+  render();
+  updateStats();
+}
+
+document.querySelectorAll('.quick-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    applyQuickRange(btn.getAttribute('data-months'), btn);
   });
 });
 
