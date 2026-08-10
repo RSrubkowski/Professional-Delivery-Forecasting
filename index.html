@@ -13,9 +13,6 @@
     --s-color: #2e7d32;   /* S = green */
     --m-color: #1565c0;   /* M = blue */
     --l-color: #c62828;   /* L = red */
-    --p50: #9ca3af;
-    --p85: #f59e0b;
-    --p95: #ef4444;
   }
   *{box-sizing:border-box;}
   body{
@@ -59,7 +56,10 @@
   .chip.off{ opacity: 0.4; }
   .chip input{ display:none; }
   .chip .dot{ width: 9px; height: 9px; border-radius: 50%; flex-shrink:0; }
-  .chip .line-swatch{ width: 14px; height: 2px; flex-shrink:0; }
+  .chip .line-swatch{ width: 18px; height: 0; border-top: 2px solid #888; flex-shrink:0; }
+  .chip .line-swatch.dotted{ border-top-style: dotted; border-top-width: 3px; }
+  .chip .line-swatch.dashed{ border-top-style: dashed; }
+  .chip .line-swatch.longdash{ border-top-style: dashed; border-top-width: 3px; }
 
   .chart-container{ position: relative; width: 100%; }
   svg{ width: 100%; height: auto; display:block; overflow: visible; font-family: inherit; }
@@ -67,9 +67,8 @@
   .axis-line{ stroke: #d1d5db; stroke-width: 1; }
   .axis-label{ fill: var(--muted); font-size: 11px; }
   .axis-title{ fill: var(--ink); font-size: 12px; font-weight: 600; }
-  .pct-line{ stroke-width: 2; stroke-dasharray: 6 4; fill:none; }
-  .pct-text{ font-size: 11px; font-weight: 600; }
-  .pt{ cursor: pointer; transition: r 0.1s; }
+  .pct-text{ font-size: 10.5px; font-weight: 600; }
+  .pt{ cursor: pointer; }
   .pt:hover{ stroke: #111827; stroke-width: 2; }
 
   .tooltip{
@@ -92,12 +91,17 @@
   .stat{ background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
   .stat .num{ font-size: 20px; font-weight: 700; }
   .stat .lbl{ font-size: 12px; color: var(--muted); }
+
+  .pct-table{ margin-top: 18px; font-size: 13px; border-collapse: collapse; width: 100%; }
+  .pct-table th, .pct-table td{ text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); }
+  .pct-table th{ color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .pct-table td.size-cell{ display:flex; align-items:center; gap:8px; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>Lead Times — 2024–25</h1>
-  <p class="subtitle">Completion date vs. lead time (days), colored by declared size. Dashed lines mark the 50th, 85th, and 95th percentiles.</p>
+  <p class="subtitle">Completion date vs. lead time (days). Percentile scenarios (50th / 85th / 95th) are calculated separately for each ticket size.</p>
 
   <div class="card">
     <div class="filters">
@@ -112,9 +116,9 @@
       <div class="filter-group">
         <span class="filter-label">Percentile scenario</span>
         <div class="filter-options" id="percentileFilters">
-          <label class="chip" data-pct="p50"><input type="checkbox" checked><span class="line-swatch" style="background:var(--p50)"></span>50th (<span data-pct-val="p50"></span>d)</label>
-          <label class="chip" data-pct="p85"><input type="checkbox" checked><span class="line-swatch" style="background:var(--p85)"></span>85th (<span data-pct-val="p85"></span>d)</label>
-          <label class="chip" data-pct="p95"><input type="checkbox" checked><span class="line-swatch" style="background:var(--p95)"></span>95th (<span data-pct-val="p95"></span>d)</label>
+          <label class="chip" data-pct="p50"><input type="checkbox" checked><span class="line-swatch dotted"></span>50th percentile</label>
+          <label class="chip" data-pct="p85"><input type="checkbox" checked><span class="line-swatch dashed"></span>85th percentile</label>
+          <label class="chip" data-pct="p95"><input type="checkbox" checked><span class="line-swatch longdash"></span>95th percentile</label>
         </div>
       </div>
     </div>
@@ -124,31 +128,46 @@
     </div>
 
     <div class="stats" id="statBox"></div>
+
+    <table class="pct-table" id="pctTable"></table>
   </div>
 </div>
 
 <script>
 const rows = [["2024-07-15","S",49.0],["2024-08-22","S",48.0],["2024-09-10","S",87.0],["2024-09-25","M",57.0],["2024-10-05","M",148.0],["2024-10-14","S",53.0],["2024-10-28","S",45.0],["2024-11-18","M",145.0],["2024-12-04","L",105.0],["2025-01-08","S",5.0],["2025-01-20","L",163.0],["2025-02-14","S",43.0],["2025-02-26","M",415.0],["2025-03-15","L",123.0],["2025-04-10","M",103.0],["2025-05-05","L",104.0],["2025-06-12","L",302.0],["2025-06-25","L",158.0],["2025-07-02","L",98.0],["2025-07-11","S",52.0],["2025-07-18","M",95.0],["2025-07-29","S",70.0],["2025-08-03","M",95.0],["2025-08-14","M",101.0],["2025-08-21","M",57.0],["2025-08-29","M",57.0],["2025-09-08","S",53.0],["2025-09-22","L",137.0],["2025-10-04","S",73.0],["2025-10-12","M",60.0],["2025-10-19","S",126.0],["2025-10-27","M",57.0],["2025-11-05","L",124.0],["2025-11-15","M",75.0],["2025-11-25","M",89.0],["2025-12-10","S",44.0]];
 
-const p50 = 88.0, p85 = 143.0, p95 = 197.75;
-
 function cssVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
 const colors = { S: cssVar('--s-color'), M: cssVar('--m-color'), L: cssVar('--l-color') };
-const pctColors = { p50: cssVar('--p50'), p85: cssVar('--p85'), p95: cssVar('--p95') };
 
-document.querySelectorAll('[data-pct-val]').forEach(el => {
-  const key = el.getAttribute('data-pct-val');
-  el.textContent = { p50, p85, p95 }[key];
-});
+// Percentile calc (linear interpolation, matches numpy default)
+function percentile(arr, p){
+  const sorted = [...arr].sort((a,b)=>a-b);
+  const idx = (p/100) * (sorted.length - 1);
+  const lo = Math.floor(idx), hi = Math.ceil(idx);
+  if (lo === hi) return sorted[lo];
+  return sorted[lo] + (sorted[hi]-sorted[lo]) * (idx-lo);
+}
 
-// Parse dates to timestamps
 const parsed = rows.map(([d, size, lead]) => ({ date: new Date(d + 'T00:00:00'), size, lead }));
 const minTs = Math.min(...parsed.map(r => r.date.getTime()));
 const maxTs = Math.max(...parsed.map(r => r.date.getTime()));
 const maxLead = Math.max(...parsed.map(r => r.lead));
 
+// Per-size percentiles
+const sizePcts = {};
+['S','M','L'].forEach(size => {
+  const vals = parsed.filter(r => r.size === size).map(r => r.lead);
+  sizePcts[size] = {
+    p50: +percentile(vals, 50).toFixed(1),
+    p85: +percentile(vals, 85).toFixed(1),
+    p95: +percentile(vals, 95).toFixed(1)
+  };
+});
+
 const activeSizes = { S: true, M: true, L: true };
 const activePct = { p50: true, p85: true, p95: true };
+const dashPatterns = { p50: '2,3', p85: '7,4', p95: '11,3,2,3' };
+const pctLabel = { p50: '50th', p85: '85th', p95: '95th' };
 
 const container = document.getElementById('chartContainer');
 const tooltip = document.getElementById('tooltip');
@@ -177,7 +196,7 @@ function buildMonthTicks(){
   const end = new Date(maxTs);
   while (cur <= end) {
     ticks.push(new Date(cur));
-    cur.setMonth(cur.getMonth() + 2); // every 2 months to avoid crowding
+    cur.setMonth(cur.getMonth() + 2);
   }
   return ticks;
 }
@@ -191,39 +210,39 @@ function render(){
 
   let svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">`;
 
-  // gridlines (horizontal)
   yTicks.forEach(t => {
     const y = yScale(t);
     svg += `<line class="grid-line" x1="${marginL}" y1="${y}" x2="${W-marginR}" y2="${y}"/>`;
     svg += `<text class="axis-label" x="${marginL-10}" y="${y+4}" text-anchor="end">${t}</text>`;
   });
 
-  // axes
   svg += `<line class="axis-line" x1="${marginL}" y1="${marginT}" x2="${marginL}" y2="${marginT+plotH}"/>`;
   svg += `<line class="axis-line" x1="${marginL}" y1="${marginT+plotH}" x2="${W-marginR}" y2="${marginT+plotH}"/>`;
 
-  // x ticks
   monthTicks.forEach(d => {
     const x = xScale(d.getTime());
     svg += `<line class="grid-line" x1="${x}" y1="${marginT}" x2="${x}" y2="${marginT+plotH}"/>`;
     svg += `<text class="axis-label" x="${x}" y="${marginT+plotH+18}" text-anchor="middle">${monthLabel(d.getTime())}</text>`;
   });
 
-  // axis titles
   svg += `<text class="axis-title" x="${marginL + plotW/2}" y="${H-6}" text-anchor="middle">Completion Date</text>`;
   svg += `<text class="axis-title" transform="translate(16, ${marginT+plotH/2}) rotate(-90)" text-anchor="middle">Lead Time (days)</text>`;
 
-  // percentile lines
-  ['p50','p85','p95'].forEach(key => {
-    if (!activePct[key]) return;
-    const val = { p50, p85, p95 }[key];
-    if (val > yMax) return;
-    const y = yScale(val);
-    svg += `<line class="pct-line" x1="${marginL}" y1="${y}" x2="${W-marginR}" y2="${y}" stroke="${pctColors[key]}"/>`;
-    svg += `<text class="pct-text" x="${W-marginR-4}" y="${y-6}" text-anchor="end" fill="${pctColors[key]}">${key.replace('p','')}th — ${val}d</text>`;
+  // per-size percentile lines (only for active sizes & active percentile toggles)
+  const activeSizeList = ['S','M','L'].filter(s => activeSizes[s]);
+  let labelOffsets = {}; // to avoid overlap, stack labels near line end
+
+  activeSizeList.forEach(size => {
+    ['p50','p85','p95'].forEach(key => {
+      if (!activePct[key]) return;
+      const val = sizePcts[size][key];
+      if (val > yMax) return;
+      const y = yScale(val);
+      svg += `<line x1="${marginL}" y1="${y}" x2="${W-marginR}" y2="${y}" stroke="${colors[size]}" stroke-width="2" stroke-dasharray="${dashPatterns[key]}" fill="none"/>`;
+      svg += `<text class="pct-text" x="${W-marginR-4}" y="${y-5}" text-anchor="end" fill="${colors[size]}">${size} ${pctLabel[key]} — ${val}d</text>`;
+    });
   });
 
-  // points
   parsed.forEach((r, i) => {
     if (!activeSizes[r.size]) return;
     const x = xScale(r.date.getTime());
@@ -259,15 +278,29 @@ function updateStats(){
       <div class="stat"><div class="num">—</div><div class="lbl">Average lead time</div></div>
       <div class="stat"><div class="num">—</div><div class="lbl">Max lead time</div></div>
     `;
-    return;
+  } else {
+    const avg = (activeLeads.reduce((a,b)=>a+b,0)/activeLeads.length).toFixed(1);
+    const max = Math.max(...activeLeads);
+    document.getElementById('statBox').innerHTML = `
+      <div class="stat"><div class="num">${activeLeads.length}</div><div class="lbl">Orders shown</div></div>
+      <div class="stat"><div class="num">${avg}d</div><div class="lbl">Average lead time</div></div>
+      <div class="stat"><div class="num">${max}d</div><div class="lbl">Max lead time</div></div>
+    `;
   }
-  const avg = (activeLeads.reduce((a,b)=>a+b,0)/activeLeads.length).toFixed(1);
-  const max = Math.max(...activeLeads);
-  document.getElementById('statBox').innerHTML = `
-    <div class="stat"><div class="num">${activeLeads.length}</div><div class="lbl">Orders shown</div></div>
-    <div class="stat"><div class="num">${avg}d</div><div class="lbl">Average lead time</div></div>
-    <div class="stat"><div class="num">${max}d</div><div class="lbl">Max lead time</div></div>
-  `;
+
+  // Percentile table for active sizes
+  const activeSizeList = ['S','M','L'].filter(s => activeSizes[s]);
+  let rowsHtml = `<tr><th>Size</th><th>50th (days)</th><th>85th (days)</th><th>95th (days)</th></tr>`;
+  activeSizeList.forEach(size => {
+    const p = sizePcts[size];
+    rowsHtml += `<tr>
+      <td class="size-cell"><span class="dot" style="width:9px;height:9px;border-radius:50%;display:inline-block;background:${colors[size]}"></span>${size}</td>
+      <td>${activePct.p50 ? p.p50 : '—'}</td>
+      <td>${activePct.p85 ? p.p85 : '—'}</td>
+      <td>${activePct.p95 ? p.p95 : '—'}</td>
+    </tr>`;
+  });
+  document.getElementById('pctTable').innerHTML = rowsHtml;
 }
 
 document.querySelectorAll('#sizeFilters .chip').forEach(chip => {
@@ -292,6 +325,7 @@ document.querySelectorAll('#percentileFilters .chip').forEach(chip => {
     activePct[pct] = input.checked;
     chip.classList.toggle('off', !input.checked);
     render();
+    updateStats();
   });
 });
 
