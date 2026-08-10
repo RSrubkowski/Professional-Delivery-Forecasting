@@ -10,9 +10,13 @@
     --ink: #1f2328;
     --muted: #6b7280;
     --border: #e5e7eb;
-    --s-color: #2e7d32;   /* S = green */
-    --m-color: #1565c0;   /* M = blue */
-    --l-color: #c62828;   /* L = red */
+    --s-color: #2e7d32;
+    --m-color: #1565c0;
+    --l-color: #c62828;
+    --accent: #111827;
+    --warn-bg: #fff7ed;
+    --warn-border: #fdba74;
+    --warn-text: #9a3412;
   }
   *{box-sizing:border-box;}
   body{
@@ -31,7 +35,9 @@
     border-radius: 12px;
     padding: 24px;
     box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    margin-bottom: 20px;
   }
+  .card h2{ font-size: 15px; margin: 0 0 14px; }
   .filters{
     display:flex;
     flex-wrap: wrap;
@@ -39,6 +45,7 @@
     margin-bottom: 20px;
     padding-bottom: 20px;
     border-bottom: 1px solid var(--border);
+    align-items: flex-end;
   }
   .filter-group{ display:flex; flex-direction: column; gap: 10px; }
   .filter-label{
@@ -61,6 +68,46 @@
   .chip .line-swatch.dashed{ border-top-style: dashed; }
   .chip .line-swatch.longdash{ border-top-style: dashed; border-top-width: 3px; }
 
+  .date-range{ display:flex; gap: 10px; align-items:center; }
+  input[type="date"], input[type="number"], select{
+    border: 1.5px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 10px;
+    font-size: 13px;
+    font-family: inherit;
+    background: var(--card);
+    color: var(--ink);
+  }
+  .btn{
+    border: none;
+    border-radius: 8px;
+    padding: 9px 16px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .btn-primary{ background: var(--accent); color: #fff; }
+  .btn-primary:hover{ background: #000; }
+  .btn-secondary{ background: var(--bg); color: var(--ink); border: 1.5px solid var(--border); }
+  .btn-secondary:hover{ border-color: #9ca3af; }
+  .btn-danger{ background: transparent; color: #b91c1c; border: none; cursor:pointer; font-size: 13px; padding: 2px 6px; }
+
+  .stale-banner{
+    display:none;
+    align-items:center;
+    gap: 10px;
+    background: var(--warn-bg);
+    border: 1px solid var(--warn-border);
+    color: var(--warn-text);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 13px;
+    margin-bottom: 20px;
+  }
+  .stale-banner.show{ display:flex; }
+  .stale-banner .btn-primary{ margin-left: auto; flex-shrink:0; }
+
   .chart-container{ position: relative; width: 100%; }
   svg{ width: 100%; height: auto; display:block; overflow: visible; font-family: inherit; }
   .grid-line{ stroke: #eef0f2; stroke-width: 1; }
@@ -70,6 +117,7 @@
   .pct-text{ font-size: 10.5px; font-weight: 600; }
   .pt{ cursor: pointer; }
   .pt:hover{ stroke: #111827; stroke-width: 2; }
+  .pt.excluded{ fill-opacity: 0.15 !important; stroke-dasharray: 2,2; }
 
   .tooltip{
     position: absolute;
@@ -86,6 +134,7 @@
     z-index: 10;
   }
   .tooltip.show{ opacity: 1; }
+  .chart-hint{ font-size: 12px; color: var(--muted); margin-top: 10px; }
 
   .stats{ display:grid; grid-template-columns: repeat(3,1fr); gap: 12px; margin-top: 20px; }
   .stat{ background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
@@ -96,12 +145,47 @@
   .pct-table th, .pct-table td{ text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--border); }
   .pct-table th{ color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
   .pct-table td.size-cell{ display:flex; align-items:center; gap:8px; }
+
+  .add-form{
+    display:flex;
+    gap: 10px;
+    align-items: flex-end;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .field{ display:flex; flex-direction:column; gap:6px; }
+  .field label{ font-size: 11px; color: var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:0.04em; }
+
+  .data-table-wrap{ max-height: 360px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; }
+  table.data-table{ width:100%; border-collapse: collapse; font-size: 13px; }
+  table.data-table th{
+    position: sticky; top:0; background: var(--bg);
+    text-align:left; padding: 8px 10px; font-size: 11px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.04em; border-bottom: 1px solid var(--border);
+  }
+  table.data-table td{ padding: 7px 10px; border-bottom: 1px solid var(--border); }
+  table.data-table tr.excluded-row{ opacity: 0.45; }
+  table.data-table tr.excluded-row td{ text-decoration: line-through; }
+  table.data-table tr.excluded-row td.actions{ text-decoration: none; }
+  .size-pill{
+    display:inline-flex; align-items:center; gap:6px; font-size:12px;
+  }
+  .size-pill .dot{ width:8px; height:8px; border-radius:50%; }
+  .toggle-btn{
+    border: 1.5px solid var(--border); background: var(--card); border-radius: 6px;
+    padding: 3px 10px; font-size: 12px; cursor: pointer; font-family: inherit;
+  }
+  .toggle-btn.is-active{ background: #ecfdf5; border-color:#86efac; color:#166534; }
+  .toggle-btn.is-excluded{ background: #fef2f2; border-color:#fca5a5; color:#991b1b; }
+  .empty-note{ color: var(--muted); font-size: 13px; padding: 14px; text-align:center; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>Lead Times — 2024–25</h1>
-  <p class="subtitle">Completion date vs. lead time (days). Percentile scenarios (50th / 85th / 95th) are calculated separately for each ticket size.</p>
+  <p class="subtitle">Completion date vs. lead time (days). Percentile scenarios (50th / 85th / 95th) are calculated separately for each ticket size, from currently active data.</p>
 
   <div class="card">
     <div class="filters">
@@ -116,102 +200,217 @@
       <div class="filter-group">
         <span class="filter-label">Percentile scenario</span>
         <div class="filter-options" id="percentileFilters">
-          <label class="chip" data-pct="p50"><input type="checkbox" checked><span class="line-swatch dotted"></span>50th percentile</label>
-          <label class="chip" data-pct="p85"><input type="checkbox" checked><span class="line-swatch dashed"></span>85th percentile</label>
-          <label class="chip" data-pct="p95"><input type="checkbox" checked><span class="line-swatch longdash"></span>95th percentile</label>
+          <label class="chip" data-pct="p50"><input type="checkbox" checked><span class="line-swatch dotted"></span>50th</label>
+          <label class="chip" data-pct="p85"><input type="checkbox" checked><span class="line-swatch dashed"></span>85th</label>
+          <label class="chip" data-pct="p95"><input type="checkbox" checked><span class="line-swatch longdash"></span>95th</label>
         </div>
       </div>
+      <div class="filter-group">
+        <span class="filter-label">Analysis time period</span>
+        <div class="date-range">
+          <input type="date" id="dateFrom">
+          <span style="color:var(--muted); font-size:13px;">to</span>
+          <input type="date" id="dateTo">
+        </div>
+      </div>
+    </div>
+
+    <div class="stale-banner" id="staleBanner">
+      <span>Data or filters changed — the percentile lines below reflect the last refresh.</span>
+      <button class="btn btn-primary" id="refreshBtnInline">Refresh Prognosis</button>
     </div>
 
     <div class="chart-container" id="chartContainer">
       <div class="tooltip" id="tooltip"></div>
     </div>
+    <p class="chart-hint">Click any point on the chart to mark it as noise (excluded from the analysis) — click again to restore it. You can also manage points in the table below.</p>
 
     <div class="stats" id="statBox"></div>
 
     <table class="pct-table" id="pctTable"></table>
   </div>
+
+  <div class="card">
+    <h2>Manage data</h2>
+    <div class="add-form">
+      <div class="field">
+        <label>Completion date</label>
+        <input type="date" id="newDate">
+      </div>
+      <div class="field">
+        <label>Ticket size</label>
+        <select id="newSize">
+          <option value="S">S — Small</option>
+          <option value="M">M — Medium</option>
+          <option value="L">L — Large</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Lead time (days)</label>
+        <input type="number" id="newLead" min="0" step="1" placeholder="e.g. 60">
+      </div>
+      <button class="btn btn-primary" id="addBtn">+ Add data point</button>
+    </div>
+
+    <div class="data-table-wrap">
+      <table class="data-table" id="dataTable">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Size</th>
+            <th>Lead time (d)</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="dataTableBody"></tbody>
+      </table>
+    </div>
+
+    <div style="margin-top:16px; display:flex; justify-content:flex-end;">
+      <button class="btn btn-primary" id="refreshBtnBottom">Refresh Prognosis</button>
+    </div>
+  </div>
 </div>
 
 <script>
-const rows = [["2024-07-15","S",49.0],["2024-08-22","S",48.0],["2024-09-10","S",87.0],["2024-09-25","M",57.0],["2024-10-05","M",148.0],["2024-10-14","S",53.0],["2024-10-28","S",45.0],["2024-11-18","M",145.0],["2024-12-04","L",105.0],["2025-01-08","S",5.0],["2025-01-20","L",163.0],["2025-02-14","S",43.0],["2025-02-26","M",415.0],["2025-03-15","L",123.0],["2025-04-10","M",103.0],["2025-05-05","L",104.0],["2025-06-12","L",302.0],["2025-06-25","L",158.0],["2025-07-02","L",98.0],["2025-07-11","S",52.0],["2025-07-18","M",95.0],["2025-07-29","S",70.0],["2025-08-03","M",95.0],["2025-08-14","M",101.0],["2025-08-21","M",57.0],["2025-08-29","M",57.0],["2025-09-08","S",53.0],["2025-09-22","L",137.0],["2025-10-04","S",73.0],["2025-10-12","M",60.0],["2025-10-19","S",126.0],["2025-10-27","M",57.0],["2025-11-05","L",124.0],["2025-11-15","M",75.0],["2025-11-25","M",89.0],["2025-12-10","S",44.0]];
+const initialRows = [["2024-07-15","S",49.0],["2024-08-22","S",48.0],["2024-09-10","S",87.0],["2024-09-25","M",57.0],["2024-10-05","M",148.0],["2024-10-14","S",53.0],["2024-10-28","S",45.0],["2024-11-18","M",145.0],["2024-12-04","L",105.0],["2025-01-08","S",5.0],["2025-01-20","L",163.0],["2025-02-14","S",43.0],["2025-02-26","M",415.0],["2025-03-15","L",123.0],["2025-04-10","M",103.0],["2025-05-05","L",104.0],["2025-06-12","L",302.0],["2025-06-25","L",158.0],["2025-07-02","L",98.0],["2025-07-11","S",52.0],["2025-07-18","M",95.0],["2025-07-29","S",70.0],["2025-08-03","M",95.0],["2025-08-14","M",101.0],["2025-08-21","M",57.0],["2025-08-29","M",57.0],["2025-09-08","S",53.0],["2025-09-22","L",137.0],["2025-10-04","S",73.0],["2025-10-12","M",60.0],["2025-10-19","S",126.0],["2025-10-27","M",57.0],["2025-11-05","L",124.0],["2025-11-15","M",75.0],["2025-11-25","M",89.0],["2025-12-10","S",44.0]];
 
 function cssVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
 const colors = { S: cssVar('--s-color'), M: cssVar('--m-color'), L: cssVar('--l-color') };
 
-// Percentile calc (linear interpolation, matches numpy default)
-function percentile(arr, p){
-  const sorted = [...arr].sort((a,b)=>a-b);
-  const idx = (p/100) * (sorted.length - 1);
-  const lo = Math.floor(idx), hi = Math.ceil(idx);
-  if (lo === hi) return sorted[lo];
-  return sorted[lo] + (sorted[hi]-sorted[lo]) * (idx-lo);
-}
-
-const parsed = rows.map(([d, size, lead]) => ({ date: new Date(d + 'T00:00:00'), size, lead }));
-const minTs = Math.min(...parsed.map(r => r.date.getTime()));
-const maxTs = Math.max(...parsed.map(r => r.date.getTime()));
-const maxLead = Math.max(...parsed.map(r => r.lead));
-
-// Per-size percentiles
-const sizePcts = {};
-['S','M','L'].forEach(size => {
-  const vals = parsed.filter(r => r.size === size).map(r => r.lead);
-  sizePcts[size] = {
-    p50: +percentile(vals, 50).toFixed(1),
-    p85: +percentile(vals, 85).toFixed(1),
-    p95: +percentile(vals, 95).toFixed(1)
-  };
-});
+let nextId = 0;
+let dataset = initialRows.map(([d, size, lead]) => ({
+  id: nextId++, dateStr: d, date: new Date(d + 'T00:00:00'), size, lead, excluded: false
+}));
 
 const activeSizes = { S: true, M: true, L: true };
 const activePct = { p50: true, p85: true, p95: true };
 const dashPatterns = { p50: '2,3', p85: '7,4', p95: '11,3,2,3' };
 const pctLabel = { p50: '50th', p85: '85th', p95: '95th' };
 
+let lastRefresh = { sizePcts: {}, key: null };
+let isStale = false;
+
 const container = document.getElementById('chartContainer');
 const tooltip = document.getElementById('tooltip');
+const staleBanner = document.getElementById('staleBanner');
 
+const dateFromInput = document.getElementById('dateFrom');
+const dateToInput = document.getElementById('dateTo');
+
+function fmtDateInput(d){ return d.toISOString().slice(0,10); }
+
+function initDateRange(){
+  const all = dataset.map(r => r.date.getTime());
+  dateFromInput.value = fmtDateInput(new Date(Math.min(...all)));
+  dateToInput.value = fmtDateInput(new Date(Math.max(...all)));
+}
+initDateRange();
+
+function percentile(arr, p){
+  const sorted = [...arr].sort((a,b)=>a-b);
+  if (sorted.length === 0) return null;
+  const idx = (p/100) * (sorted.length - 1);
+  const lo = Math.floor(idx), hi = Math.ceil(idx);
+  if (lo === hi) return sorted[lo];
+  return sorted[lo] + (sorted[hi]-sorted[lo]) * (idx-lo);
+}
+
+function inDateRange(d){
+  const from = dateFromInput.value ? new Date(dateFromInput.value + 'T00:00:00') : null;
+  const to = dateToInput.value ? new Date(dateToInput.value + 'T23:59:59') : null;
+  if (from && d < from) return false;
+  if (to && d > to) return false;
+  return true;
+}
+
+// Points used for the actual analysis (percentiles): not excluded + within date range
+function analysisPoints(){
+  return dataset.filter(r => !r.excluded && inDateRange(r.date));
+}
+
+function currentStateKey(){
+  return JSON.stringify({
+    ids: dataset.map(r => `${r.id}:${r.excluded}:${r.dateStr}:${r.size}:${r.lead}`),
+    from: dateFromInput.value, to: dateToInput.value
+  });
+}
+
+function markStale(){
+  isStale = (currentStateKey() !== lastRefresh.key);
+  staleBanner.classList.toggle('show', isStale);
+}
+
+function computeSizePcts(points){
+  const out = {};
+  ['S','M','L'].forEach(size => {
+    const vals = points.filter(r => r.size === size).map(r => r.lead);
+    out[size] = vals.length ? {
+      p50: +percentile(vals,50).toFixed(1),
+      p85: +percentile(vals,85).toFixed(1),
+      p95: +percentile(vals,95).toFixed(1),
+      n: vals.length
+    } : null;
+  });
+  return out;
+}
+
+function refreshPrognosis(){
+  const points = analysisPoints();
+  lastRefresh.sizePcts = computeSizePcts(points);
+  lastRefresh.key = currentStateKey();
+  isStale = false;
+  staleBanner.classList.remove('show');
+  render();
+  updateStats();
+}
+
+// ---- Chart geometry ----
 const W = 1000, H = 460;
 const marginL = 60, marginR = 20, marginT = 20, marginB = 50;
 const plotW = W - marginL - marginR;
 const plotH = H - marginT - marginB;
 
-function xScale(ts){ return marginL + ((ts - minTs) / (maxTs - minTs)) * plotW; }
-function yMaxVal(){ return Math.ceil((maxLead * 1.08) / 10) * 10; }
-function yScale(val){
-  const yMax = yMaxVal();
-  return marginT + plotH - (val / yMax) * plotH;
+function getChartBounds(){
+  const all = dataset.map(r => r.date.getTime());
+  return { minTs: Math.min(...all), maxTs: Math.max(...all) };
 }
+
+function xScale(ts, minTs, maxTs){
+  if (maxTs === minTs) return marginL + plotW/2;
+  return marginL + ((ts - minTs) / (maxTs - minTs)) * plotW;
+}
+function yMaxVal(){
+  const leads = dataset.map(r => r.lead);
+  const maxLead = leads.length ? Math.max(...leads) : 10;
+  return Math.ceil((maxLead * 1.08) / 10) * 10;
+}
+function yScale(val, yMax){ return marginT + plotH - (val / yMax) * plotH; }
 
 function monthLabel(ts){
-  const d = new Date(ts);
-  return d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+  return new Date(ts).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
 }
-
-function buildMonthTicks(){
+function buildMonthTicks(minTs, maxTs){
   const ticks = [];
-  let cur = new Date(minTs);
-  cur.setDate(1);
+  let cur = new Date(minTs); cur.setDate(1);
   const end = new Date(maxTs);
-  while (cur <= end) {
-    ticks.push(new Date(cur));
-    cur.setMonth(cur.getMonth() + 2);
-  }
+  while (cur <= end) { ticks.push(new Date(cur)); cur.setMonth(cur.getMonth()+2); }
   return ticks;
 }
 
 function render(){
+  const { minTs, maxTs } = getChartBounds();
   const yMax = yMaxVal();
-  const monthTicks = buildMonthTicks();
+  const monthTicks = buildMonthTicks(minTs, maxTs);
   const yTicks = [];
   const step = yMax / 5;
-  for (let i = 0; i <= 5; i++) yTicks.push(Math.round(step * i));
+  for (let i=0;i<=5;i++) yTicks.push(Math.round(step*i));
 
   let svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">`;
 
   yTicks.forEach(t => {
-    const y = yScale(t);
+    const y = yScale(t, yMax);
     svg += `<line class="grid-line" x1="${marginL}" y1="${y}" x2="${W-marginR}" y2="${y}"/>`;
     svg += `<text class="axis-label" x="${marginL-10}" y="${y+4}" text-anchor="end">${t}</text>`;
   });
@@ -220,34 +419,47 @@ function render(){
   svg += `<line class="axis-line" x1="${marginL}" y1="${marginT+plotH}" x2="${W-marginR}" y2="${marginT+plotH}"/>`;
 
   monthTicks.forEach(d => {
-    const x = xScale(d.getTime());
+    const x = xScale(d.getTime(), minTs, maxTs);
     svg += `<line class="grid-line" x1="${x}" y1="${marginT}" x2="${x}" y2="${marginT+plotH}"/>`;
     svg += `<text class="axis-label" x="${x}" y="${marginT+plotH+18}" text-anchor="middle">${monthLabel(d.getTime())}</text>`;
   });
 
+  // shaded out-of-range zones
+  const rangeFrom = dateFromInput.value ? new Date(dateFromInput.value+'T00:00:00').getTime() : minTs;
+  const rangeTo = dateToInput.value ? new Date(dateToInput.value+'T23:59:59').getTime() : maxTs;
+  if (rangeFrom > minTs) {
+    const x2 = xScale(rangeFrom, minTs, maxTs);
+    svg = svg.replace('</svg>', '') + `<rect x="${marginL}" y="${marginT}" width="${x2-marginL}" height="${plotH}" fill="#000" fill-opacity="0.035"/></svg>`;
+  }
+  if (rangeTo < maxTs) {
+    const x1 = xScale(rangeTo, minTs, maxTs);
+    svg = svg.replace('</svg>', '') + `<rect x="${x1}" y="${marginT}" width="${W-marginR-x1}" height="${plotH}" fill="#000" fill-opacity="0.035"/></svg>`;
+  }
+
   svg += `<text class="axis-title" x="${marginL + plotW/2}" y="${H-6}" text-anchor="middle">Completion Date</text>`;
   svg += `<text class="axis-title" transform="translate(16, ${marginT+plotH/2}) rotate(-90)" text-anchor="middle">Lead Time (days)</text>`;
 
-  // per-size percentile lines (only for active sizes & active percentile toggles)
+  // percentile lines from LAST REFRESH snapshot
   const activeSizeList = ['S','M','L'].filter(s => activeSizes[s]);
-  let labelOffsets = {}; // to avoid overlap, stack labels near line end
-
   activeSizeList.forEach(size => {
+    const p = lastRefresh.sizePcts[size];
+    if (!p) return;
     ['p50','p85','p95'].forEach(key => {
       if (!activePct[key]) return;
-      const val = sizePcts[size][key];
+      const val = p[key];
       if (val > yMax) return;
-      const y = yScale(val);
+      const y = yScale(val, yMax);
       svg += `<line x1="${marginL}" y1="${y}" x2="${W-marginR}" y2="${y}" stroke="${colors[size]}" stroke-width="2" stroke-dasharray="${dashPatterns[key]}" fill="none"/>`;
       svg += `<text class="pct-text" x="${W-marginR-4}" y="${y-5}" text-anchor="end" fill="${colors[size]}">${size} ${pctLabel[key]} — ${val}d</text>`;
     });
   });
 
-  parsed.forEach((r, i) => {
+  dataset.forEach(r => {
     if (!activeSizes[r.size]) return;
-    const x = xScale(r.date.getTime());
-    const y = yScale(r.lead);
-    svg += `<circle class="pt" data-i="${i}" cx="${x}" cy="${y}" r="5.5" fill="${colors[r.size]}" fill-opacity="0.85" stroke="${colors[r.size]}"/>`;
+    const x = xScale(r.date.getTime(), minTs, maxTs);
+    const y = yScale(r.lead, yMax);
+    const cls = r.excluded ? 'pt excluded' : 'pt';
+    svg += `<circle class="${cls}" data-id="${r.id}" cx="${x}" cy="${y}" r="5.5" fill="${colors[r.size]}" fill-opacity="${r.excluded ? 0.15 : 0.85}" stroke="${colors[r.size]}"/>`;
   });
 
   svg += `</svg>`;
@@ -257,52 +469,105 @@ function render(){
 
   container.querySelectorAll('.pt').forEach(circle => {
     circle.addEventListener('mousemove', (e) => {
-      const i = +circle.getAttribute('data-i');
-      const r = parsed[i];
+      const id = +circle.getAttribute('data-id');
+      const r = dataset.find(d => d.id === id);
       const dateStr = r.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-      tooltip.textContent = `${dateStr} · Size ${r.size} · ${r.lead} days`;
+      tooltip.textContent = `${dateStr} · Size ${r.size} · ${r.lead} days${r.excluded ? ' · excluded' : ''} — click to ${r.excluded ? 'restore' : 'exclude'}`;
       const rect = container.getBoundingClientRect();
       tooltip.style.left = (e.clientX - rect.left) + 'px';
       tooltip.style.top = (e.clientY - rect.top) + 'px';
       tooltip.classList.add('show');
     });
     circle.addEventListener('mouseleave', () => tooltip.classList.remove('show'));
+    circle.addEventListener('click', () => {
+      const id = +circle.getAttribute('data-id');
+      const r = dataset.find(d => d.id === id);
+      r.excluded = !r.excluded;
+      markStale();
+      render();
+      renderDataTable();
+      updateStats();
+    });
   });
 }
 
 function updateStats(){
-  const activeLeads = parsed.filter(r => activeSizes[r.size]).map(r => r.lead);
-  if (activeLeads.length === 0) {
+  const points = analysisPoints().filter(r => activeSizes[r.size]);
+  if (points.length === 0) {
     document.getElementById('statBox').innerHTML = `
-      <div class="stat"><div class="num">0</div><div class="lbl">Orders shown</div></div>
+      <div class="stat"><div class="num">0</div><div class="lbl">Orders in analysis</div></div>
       <div class="stat"><div class="num">—</div><div class="lbl">Average lead time</div></div>
       <div class="stat"><div class="num">—</div><div class="lbl">Max lead time</div></div>
     `;
   } else {
-    const avg = (activeLeads.reduce((a,b)=>a+b,0)/activeLeads.length).toFixed(1);
-    const max = Math.max(...activeLeads);
+    const leads = points.map(r => r.lead);
+    const avg = (leads.reduce((a,b)=>a+b,0)/leads.length).toFixed(1);
+    const max = Math.max(...leads);
     document.getElementById('statBox').innerHTML = `
-      <div class="stat"><div class="num">${activeLeads.length}</div><div class="lbl">Orders shown</div></div>
+      <div class="stat"><div class="num">${points.length}</div><div class="lbl">Orders in analysis</div></div>
       <div class="stat"><div class="num">${avg}d</div><div class="lbl">Average lead time</div></div>
       <div class="stat"><div class="num">${max}d</div><div class="lbl">Max lead time</div></div>
     `;
   }
 
-  // Percentile table for active sizes
   const activeSizeList = ['S','M','L'].filter(s => activeSizes[s]);
-  let rowsHtml = `<tr><th>Size</th><th>50th (days)</th><th>85th (days)</th><th>95th (days)</th></tr>`;
+  let rowsHtml = `<tr><th>Size</th><th>n</th><th>50th (days)</th><th>85th (days)</th><th>95th (days)</th></tr>`;
   activeSizeList.forEach(size => {
-    const p = sizePcts[size];
+    const p = lastRefresh.sizePcts[size];
     rowsHtml += `<tr>
       <td class="size-cell"><span class="dot" style="width:9px;height:9px;border-radius:50%;display:inline-block;background:${colors[size]}"></span>${size}</td>
-      <td>${activePct.p50 ? p.p50 : '—'}</td>
-      <td>${activePct.p85 ? p.p85 : '—'}</td>
-      <td>${activePct.p95 ? p.p95 : '—'}</td>
+      <td>${p ? p.n : '—'}</td>
+      <td>${p && activePct.p50 ? p.p50 : '—'}</td>
+      <td>${p && activePct.p85 ? p.p85 : '—'}</td>
+      <td>${p && activePct.p95 ? p.p95 : '—'}</td>
     </tr>`;
   });
   document.getElementById('pctTable').innerHTML = rowsHtml;
 }
 
+function renderDataTable(){
+  const tbody = document.getElementById('dataTableBody');
+  if (dataset.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="5"><div class="empty-note">No data points yet.</div></td></tr>`;
+    return;
+  }
+  const sorted = [...dataset].sort((a,b) => a.date - b.date);
+  tbody.innerHTML = sorted.map(r => `
+    <tr class="${r.excluded ? 'excluded-row' : ''}">
+      <td>${r.dateStr}</td>
+      <td><span class="size-pill"><span class="dot" style="background:${colors[r.size]}"></span>${r.size}</span></td>
+      <td>${r.lead}</td>
+      <td class="actions">
+        <button class="toggle-btn ${r.excluded ? 'is-excluded' : 'is-active'}" data-id="${r.id}" data-action="toggle">
+          ${r.excluded ? 'Excluded — restore' : 'Active — exclude'}
+        </button>
+      </td>
+      <td class="actions">
+        <button class="btn-danger" data-id="${r.id}" data-action="remove">Remove</button>
+      </td>
+    </tr>
+  `).join('');
+
+  tbody.querySelectorAll('[data-action="toggle"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = +btn.getAttribute('data-id');
+      const r = dataset.find(d => d.id === id);
+      r.excluded = !r.excluded;
+      markStale();
+      render(); renderDataTable(); updateStats();
+    });
+  });
+  tbody.querySelectorAll('[data-action="remove"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const id = +btn.getAttribute('data-id');
+      dataset = dataset.filter(d => d.id !== id);
+      markStale();
+      render(); renderDataTable(); updateStats();
+    });
+  });
+}
+
+// ---- Filter chip handlers ----
 document.querySelectorAll('#sizeFilters .chip').forEach(chip => {
   const size = chip.getAttribute('data-size');
   const input = chip.querySelector('input');
@@ -329,8 +594,48 @@ document.querySelectorAll('#percentileFilters .chip').forEach(chip => {
   });
 });
 
-render();
-updateStats();
+[dateFromInput, dateToInput].forEach(inp => {
+  inp.addEventListener('change', () => {
+    markStale();
+    render();
+    updateStats();
+  });
+});
+
+document.getElementById('refreshBtnInline').addEventListener('click', refreshPrognosis);
+document.getElementById('refreshBtnBottom').addEventListener('click', refreshPrognosis);
+
+document.getElementById('addBtn').addEventListener('click', () => {
+  const dateVal = document.getElementById('newDate').value;
+  const sizeVal = document.getElementById('newSize').value;
+  const leadVal = parseFloat(document.getElementById('newLead').value);
+
+  if (!dateVal || isNaN(leadVal) || leadVal < 0) {
+    alert('Please provide a valid date and a non-negative lead time.');
+    return;
+  }
+
+  dataset.push({
+    id: nextId++,
+    dateStr: dateVal,
+    date: new Date(dateVal + 'T00:00:00'),
+    size: sizeVal,
+    lead: leadVal,
+    excluded: false
+  });
+
+  document.getElementById('newDate').value = '';
+  document.getElementById('newLead').value = '';
+
+  markStale();
+  render();
+  renderDataTable();
+  updateStats();
+});
+
+// ---- Initial paint ----
+renderDataTable();
+refreshPrognosis(); // establishes baseline percentiles
 </script>
 </body>
 </html>
