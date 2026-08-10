@@ -526,11 +526,11 @@ function render(){
   const rangeTo = dateToInput.value ? new Date(dateToInput.value+'T23:59:59').getTime() : maxTs;
   if (rangeFrom > minTs) {
     const x2 = xScale(rangeFrom, minTs, maxTs);
-    svg = svg.replace('</svg>', '') + `<rect x="${marginL}" y="${marginT}" width="${x2-marginL}" height="${plotH}" fill="#000" fill-opacity="0.035"/></svg>`;
+    svg += `<rect x="${marginL}" y="${marginT}" width="${x2-marginL}" height="${plotH}" fill="#000" fill-opacity="0.035"/>`;
   }
   if (rangeTo < maxTs) {
     const x1 = xScale(rangeTo, minTs, maxTs);
-    svg = svg.replace('</svg>', '') + `<rect x="${x1}" y="${marginT}" width="${W-marginR-x1}" height="${plotH}" fill="#000" fill-opacity="0.035"/></svg>`;
+    svg += `<rect x="${x1}" y="${marginT}" width="${W-marginR-x1}" height="${plotH}" fill="#000" fill-opacity="0.035"/>`;
   }
 
   svg += `<text class="axis-title" x="${marginL + plotW/2}" y="${H-6}" text-anchor="middle">Completion Date</text>`;
