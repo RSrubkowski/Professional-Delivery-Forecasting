@@ -84,6 +84,24 @@
   }
   .quick-btn:hover{ border-color: #9ca3af; color: var(--ink); }
   .quick-btn.active{ background: var(--accent); border-color: var(--accent); color: #fff; }
+
+  .switch-row{ display:flex; align-items:center; gap: 10px; cursor: pointer; user-select: none; padding-top: 3px; }
+  .switch{ position: relative; display:inline-block; width: 38px; height: 22px; flex-shrink:0; }
+  .switch input{ opacity: 0; width: 0; height: 0; }
+  .switch .slider{
+    position: absolute; cursor: pointer; inset: 0;
+    background-color: var(--border); border-radius: 999px;
+    transition: background-color 0.15s;
+  }
+  .switch .slider::before{
+    content: ""; position: absolute; height: 16px; width: 16px;
+    left: 3px; top: 3px; background-color: #fff; border-radius: 50%;
+    transition: transform 0.15s;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.2);
+  }
+  .switch input:checked + .slider{ background-color: var(--accent); }
+  .switch input:checked + .slider::before{ transform: translateX(16px); }
+  .switch-label{ font-size: 13px; color: var(--ink); }
   input[type="date"], input[type="number"], select{
     border: 1.5px solid var(--border);
     border-radius: 8px;
@@ -284,6 +302,16 @@
           <button class="quick-btn" data-months="all">All</button>
         </div>
       </div>
+      <div class="filter-group">
+        <span class="filter-label">Behaviour chart</span>
+        <label class="switch-row" for="behaviourToggle">
+          <span class="switch">
+            <input type="checkbox" id="behaviourToggle">
+            <span class="slider"></span>
+          </span>
+          <span class="switch-label">Show natural process limits (XmR)</span>
+        </label>
+      </div>
     </div>
 
     <div class="stale-banner" id="staleBanner">
@@ -299,6 +327,9 @@
     <div class="stats" id="statBox"></div>
 
     <table class="pct-table" id="pctTable"></table>
+
+    <table class="pct-table" id="xmrTable" style="display:none;"></table>
+    <p class="chart-hint" id="xmrHint" style="display:none;">Natural process limits = average ± 2.66 × average moving range (consecutive point-to-point difference), per ticket size, using currently active data. Needs at least 2 points per size.</p>
   </div>
 
   <div class="card">
@@ -386,8 +417,9 @@ const activePct = { p50: true, p85: true, p95: true };
 const dashPatterns = { p50: '2,3', p85: '7,4', p95: '11,3,2,3' };
 const pctLabel = { p50: '50th', p85: '85th', p95: '95th' };
 
-let lastRefresh = { sizePcts: {}, key: null };
+let lastRefresh = { sizePcts: {}, sizeXmR: {}, key: null };
 let isStale = false;
+let behaviourEnabled = false;
 
 const container = document.getElementById('chartContainer');
 const tooltip = document.getElementById('tooltip');
@@ -453,9 +485,44 @@ function computeSizePcts(points){
   return out;
 }
 
+// XmR / Process Behaviour Chart: natural process limits = average ± 2.66 * average moving range
+const XMR_CONSTANT = 2.66;
+function computeXmR(points){
+  const sorted = [...points].sort((a,b) => a.date - b.date);
+  const vals = sorted.map(r => r.lead);
+  if (vals.length < 2) return null;
+
+  const avg = vals.reduce((a,b)=>a+b,0) / vals.length;
+  const movingRanges = [];
+  for (let i = 1; i < vals.length; i++) movingRanges.push(Math.abs(vals[i] - vals[i-1]));
+  const mrBar = movingRanges.reduce((a,b)=>a+b,0) / movingRanges.length;
+
+  const unpl = avg + XMR_CONSTANT * mrBar;
+  const lnplRaw = avg - XMR_CONSTANT * mrBar;
+  const lnpl = Math.max(0, lnplRaw);
+
+  return {
+    avg: +avg.toFixed(1),
+    mrBar: +mrBar.toFixed(1),
+    unpl: +unpl.toFixed(1),
+    lnpl: +lnpl.toFixed(1),
+    lnplClipped: lnplRaw < 0,
+    n: vals.length
+  };
+}
+
+function computeSizeXmR(points){
+  const out = {};
+  ['S','M','L'].forEach(size => {
+    out[size] = computeXmR(points.filter(r => r.size === size));
+  });
+  return out;
+}
+
 function refreshPrognosis(){
   const points = analysisPoints();
   lastRefresh.sizePcts = computeSizePcts(points);
+  lastRefresh.sizeXmR = computeSizeXmR(points);
   lastRefresh.key = currentStateKey();
   isStale = false;
   staleBanner.classList.remove('show');
@@ -480,7 +547,13 @@ function xScale(ts, minTs, maxTs){
 }
 function yMaxVal(){
   const leads = dataset.map(r => r.lead);
-  const maxLead = leads.length ? Math.max(...leads) : 10;
+  let maxLead = leads.length ? Math.max(...leads) : 10;
+  if (behaviourEnabled) {
+    ['S','M','L'].forEach(size => {
+      const x = lastRefresh.sizeXmR && lastRefresh.sizeXmR[size];
+      if (x && activeSizes[size] && x.unpl > maxLead) maxLead = x.unpl;
+    });
+  }
   return Math.ceil((maxLead * 1.08) / 10) * 10;
 }
 function yScale(val, yMax){ return marginT + plotH - (val / yMax) * plotH; }
@@ -551,6 +624,33 @@ function render(){
     });
   });
 
+  // XmR natural process limits from LAST REFRESH snapshot
+  if (behaviourEnabled) {
+    activeSizeList.forEach(size => {
+      const x = lastRefresh.sizeXmR[size];
+      if (!x) return;
+      const color = colors[size];
+
+      const yAvg = yScale(x.avg, yMax);
+      const yU = yScale(Math.min(x.unpl, yMax), yMax);
+      const yL = yScale(x.lnpl, yMax);
+
+      // shaded bands: average -> UNPL, average -> LNPL
+      svg += `<rect x="${marginL}" y="${yU}" width="${plotW}" height="${yAvg - yU}" fill="${color}" fill-opacity="0.07"/>`;
+      svg += `<rect x="${marginL}" y="${yAvg}" width="${plotW}" height="${yL - yAvg}" fill="${color}" fill-opacity="0.07"/>`;
+
+      svg += `<line x1="${marginL}" y1="${yAvg}" x2="${W-marginR}" y2="${yAvg}" stroke="${color}" stroke-width="1.5" fill="none"/>`;
+      svg += `<text class="pct-text" x="${marginL+4}" y="${yAvg-5}" text-anchor="start" fill="${color}">${size} avg — ${x.avg}d</text>`;
+
+      if (x.unpl <= yMax) {
+        svg += `<line x1="${marginL}" y1="${yU}" x2="${W-marginR}" y2="${yU}" stroke="${color}" stroke-width="2" stroke-dasharray="9,3,2,3" fill="none"/>`;
+        svg += `<text class="pct-text" x="${marginL+4}" y="${yU-5}" text-anchor="start" fill="${color}">${size} UNPL — ${x.unpl}d</text>`;
+      }
+      svg += `<line x1="${marginL}" y1="${yL}" x2="${W-marginR}" y2="${yL}" stroke="${color}" stroke-width="2" stroke-dasharray="9,3,2,3" fill="none"/>`;
+      svg += `<text class="pct-text" x="${marginL+4}" y="${yL+13}" text-anchor="start" fill="${color}">${size} LNPL — ${x.lnpl}d${x.lnplClipped ? ' (clipped at 0)' : ''}</text>`;
+    });
+  }
+
   dataset.forEach(r => {
     if (!activeSizes[r.size]) return;
     const x = xScale(r.date.getTime(), minTs, maxTs);
@@ -620,6 +720,30 @@ function updateStats(){
     </tr>`;
   });
   document.getElementById('pctTable').innerHTML = rowsHtml;
+
+  // XmR table
+  const xmrTable = document.getElementById('xmrTable');
+  const xmrHint = document.getElementById('xmrHint');
+  if (behaviourEnabled) {
+    let xmrHtml = `<tr><th>Size</th><th>n</th><th>Average (CL)</th><th>Avg moving range</th><th>UNPL</th><th>LNPL</th></tr>`;
+    activeSizeList.forEach(size => {
+      const x = lastRefresh.sizeXmR[size];
+      xmrHtml += `<tr>
+        <td class="size-cell"><span class="dot" style="width:9px;height:9px;border-radius:50%;display:inline-block;background:${colors[size]}"></span>${size}</td>
+        <td>${x ? x.n : '—'}</td>
+        <td>${x ? x.avg + 'd' : '—'}</td>
+        <td>${x ? x.mrBar + 'd' : '—'}</td>
+        <td>${x ? x.unpl + 'd' : '—'}</td>
+        <td>${x ? x.lnpl + 'd' + (x.lnplClipped ? ' *' : '') : (x === null ? 'n<2' : '—')}</td>
+      </tr>`;
+    });
+    xmrTable.innerHTML = xmrHtml;
+    xmrTable.style.display = '';
+    xmrHint.style.display = '';
+  } else {
+    xmrTable.style.display = 'none';
+    xmrHint.style.display = 'none';
+  }
 }
 
 function renderDataTable(){
@@ -734,6 +858,12 @@ document.querySelectorAll('#percentileFilters .chip').forEach(chip => {
     render();
     updateStats();
   });
+});
+
+document.getElementById('behaviourToggle').addEventListener('change', (e) => {
+  behaviourEnabled = e.target.checked;
+  render();
+  updateStats();
 });
 
 [dateFromInput, dateToInput].forEach(inp => {
