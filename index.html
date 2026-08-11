@@ -323,6 +323,7 @@
       <button class="tab-btn active" data-chart-tab="scatter">Scatter Chart</button>
       <button class="tab-btn" data-chart-tab="behaviour">Behaviour Chart</button>
       <button class="tab-btn" data-chart-tab="mr">Moving Range Chart</button>
+      <button class="tab-btn" data-chart-tab="delivery">Delivery Rate</button>
     </div>
 
     <div class="tab-panel active" id="chart-tab-scatter">
@@ -385,6 +386,24 @@
 
       <table class="pct-table" id="mrTable"></table>
       <p class="chart-hint">Upper Range Limit (URL) = 3.27 × average moving range. The lower limit for a moving-range chart is mathematically 0 (ranges can't be negative), so it's shown flat at the bottom. Needs at least 2 points per size.</p>
+    </div>
+
+    <div class="tab-panel" id="chart-tab-delivery">
+      <h3 class="section-title">Delivery Rate — X-Chart (Monthly Throughput)</h3>
+      <div class="chart-container" id="deliveryXChartContainer">
+        <div class="tooltip" id="deliveryXTooltip"></div>
+      </div>
+      <table class="pct-table" id="deliveryXTable"></table>
+      <p class="chart-hint">Each point is the number of completions in that calendar month, aggregated from the currently active data (respecting the analysis time period and any excluded points, across all ticket sizes). Center line = average deliveries/month; UNPL/LNPL = average ± 2.66 × average moving range.</p>
+
+      <hr class="section-divider">
+
+      <h3 class="section-title">Delivery Rate — Moving Range Chart</h3>
+      <div class="chart-container" id="deliveryMRChartContainer">
+        <div class="tooltip" id="deliveryMRTooltip"></div>
+      </div>
+      <table class="pct-table" id="deliveryMRTable"></table>
+      <p class="chart-hint">Each point is the absolute month-to-month change in delivery count. URL = 3.27 × average moving range; the lower limit is mathematically 0.</p>
     </div>
 
     <div class="tab-panel" id="chart-tab-data">
@@ -464,6 +483,7 @@ const initialRows = [["2024-07-15","S",49.0],["2024-08-22","S",48.0],["2024-09-1
 function cssVar(name){ return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
 const colors = { S: cssVar('--s-color'), M: cssVar('--m-color'), L: cssVar('--l-color') };
 const overallColor = '#334155'; // neutral slate, distinct from S/M/L colors, for combined stats
+const deliveryColor = '#7c3aed'; // violet, for delivery-rate charts
 
 let nextId = 0;
 let dataset = initialRows.map(([d, size, lead]) => ({
@@ -475,7 +495,7 @@ const activePct = { p50: true, p85: true, p95: true };
 const dashPatterns = { p50: '2,3', p85: '7,4', p95: '11,3,2,3' };
 const pctLabel = { p50: '50th', p85: '85th', p95: '95th' };
 
-let lastRefresh = { sizePcts: {}, sizeXmR: {}, sizeMR: {}, sizeSignals: {}, overallXmR: null, overallMR: null, key: null };
+let lastRefresh = { sizePcts: {}, sizeXmR: {}, sizeMR: {}, sizeSignals: {}, overallXmR: null, overallMR: null, deliverySeries: [], deliveryXmR: null, deliveryMR: null, key: null };
 let isStale = false;
 
 const container = document.getElementById('chartContainer');
@@ -488,6 +508,10 @@ const overallBehaviourContainer = document.getElementById('overallBehaviourChart
 const overallBehaviourTooltip = document.getElementById('overallBehaviourTooltip');
 const overallMRContainer = document.getElementById('overallMRChartContainer');
 const overallMRTooltip = document.getElementById('overallMRTooltip');
+const deliveryXContainer = document.getElementById('deliveryXChartContainer');
+const deliveryXTooltip = document.getElementById('deliveryXTooltip');
+const deliveryMRContainer = document.getElementById('deliveryMRChartContainer');
+const deliveryMRTooltip = document.getElementById('deliveryMRTooltip');
 const staleBanner = document.getElementById('staleBanner');
 
 const dateFromInput = document.getElementById('dateFrom');
@@ -655,6 +679,39 @@ function computeSizeSignals(sizeMR){
   return out;
 }
 
+// Aggregates completions into monthly counts (delivery rate / throughput) over the
+// currently selected analysis time period, including zero-count months so the
+// X/MR charts see a continuous monthly series rather than gaps.
+function buildMonthlyDeliverySeries(points){
+  if (points.length === 0) return [];
+
+  const domFrom = dateFromInput.value
+    ? new Date(dateFromInput.value + 'T00:00:00')
+    : new Date(Math.min(...points.map(p => p.date.getTime())));
+  const domTo = dateToInput.value
+    ? new Date(dateToInput.value + 'T00:00:00')
+    : new Date(Math.max(...points.map(p => p.date.getTime())));
+
+  const startMonth = new Date(domFrom.getFullYear(), domFrom.getMonth(), 1);
+  const endMonth = new Date(domTo.getFullYear(), domTo.getMonth(), 1);
+
+  const counts = {};
+  points.forEach(p => {
+    const key = `${p.date.getFullYear()}-${p.date.getMonth()}`;
+    counts[key] = (counts[key] || 0) + 1;
+  });
+
+  const series = [];
+  let cur = new Date(startMonth);
+  while (cur <= endMonth) {
+    const key = `${cur.getFullYear()}-${cur.getMonth()}`;
+    // reuse the `lead` field name so this can be fed straight into computeXmR / computeMRSeries
+    series.push({ date: new Date(cur), lead: counts[key] || 0 });
+    cur.setMonth(cur.getMonth() + 1);
+  }
+  return series;
+}
+
 function refreshPrognosis(){
   const points = analysisPoints();
   lastRefresh.sizePcts = computeSizePcts(points);
@@ -663,6 +720,9 @@ function refreshPrognosis(){
   lastRefresh.sizeSignals = computeSizeSignals(lastRefresh.sizeMR);
   lastRefresh.overallXmR = computeXmR(points);        // all sizes combined, one chronological sequence
   lastRefresh.overallMR = computeMRSeries(points);     // all sizes combined, one chronological sequence
+  lastRefresh.deliverySeries = buildMonthlyDeliverySeries(points);
+  lastRefresh.deliveryXmR = computeXmR(lastRefresh.deliverySeries);
+  lastRefresh.deliveryMR = computeMRSeries(lastRefresh.deliverySeries);
   lastRefresh.key = currentStateKey();
   isStale = false;
   staleBanner.classList.remove('show');
@@ -724,6 +784,32 @@ function yMaxValOverallMR(){
     m.series.forEach(pt => { if (pt.mr > maxVal) maxVal = pt.mr; });
   }
   return Math.ceil((maxVal * 1.08) / 10) * 10;
+}
+// Delivery-rate charts use small integer counts, so round to a nicer 5-unit ceiling instead.
+function getDeliveryChartBounds(){
+  const series = lastRefresh.deliverySeries || [];
+  if (series.length === 0) {
+    const now = Date.now();
+    return { minTs: now, maxTs: now };
+  }
+  const times = series.map(s => s.date.getTime());
+  return { minTs: Math.min(...times), maxTs: Math.max(...times) };
+}
+function yMaxValDeliveryX(){
+  const series = lastRefresh.deliverySeries || [];
+  let maxVal = series.length ? Math.max(...series.map(s => s.lead)) : 5;
+  const x = lastRefresh.deliveryXmR;
+  if (x && x.unpl > maxVal) maxVal = x.unpl;
+  return Math.ceil(Math.max(5, maxVal * 1.15) / 5) * 5;
+}
+function yMaxValDeliveryMR(){
+  let maxVal = 5;
+  const m = lastRefresh.deliveryMR;
+  if (m) {
+    if (m.url > maxVal) maxVal = m.url;
+    m.series.forEach(pt => { if (pt.mr > maxVal) maxVal = pt.mr; });
+  }
+  return Math.ceil(Math.max(5, maxVal * 1.15) / 5) * 5;
 }
 function yScale(val, yMax){ return marginT + plotH - (val / yMax) * plotH; }
 
@@ -1132,12 +1218,161 @@ function renderMovingRangeChart(){
   });
 }
 
+// Delivery rate: monthly-aggregated X-chart (individuals). No click-to-exclude here —
+// each point is a monthly count, not a single dataset row.
+function renderDeliveryXChart(){
+  const { minTs, maxTs } = getDeliveryChartBounds();
+  const yMax = yMaxValDeliveryX();
+  let svg = buildBaseSvg(minTs, maxTs, yMax, 'Deliveries / Month');
+
+  const series = lastRefresh.deliverySeries || [];
+  const x = lastRefresh.deliveryXmR;
+  const tooltipData = [];
+
+  if (x) {
+    const yAvg = yScale(x.avg, yMax);
+    const yU = yScale(Math.min(x.unpl, yMax), yMax);
+    const yL = yScale(x.lnpl, yMax);
+
+    svg += `<rect x="${marginL}" y="${yU}" width="${plotW}" height="${yAvg - yU}" fill="${deliveryColor}" fill-opacity="0.07"/>`;
+    svg += `<rect x="${marginL}" y="${yAvg}" width="${plotW}" height="${yL - yAvg}" fill="${deliveryColor}" fill-opacity="0.07"/>`;
+
+    svg += `<line x1="${marginL}" y1="${yAvg}" x2="${W-marginR}" y2="${yAvg}" stroke="${deliveryColor}" stroke-width="2" fill="none"/>`;
+    svg += `<text class="pct-text" x="${marginL+4}" y="${yAvg-5}" text-anchor="start" fill="${deliveryColor}">avg — ${x.avg}/mo</text>`;
+
+    if (x.unpl <= yMax) {
+      svg += `<line x1="${marginL}" y1="${yU}" x2="${W-marginR}" y2="${yU}" stroke="${deliveryColor}" stroke-width="2.5" stroke-dasharray="9,3,2,3" fill="none"/>`;
+      svg += `<text class="pct-text" x="${marginL+4}" y="${yU-5}" text-anchor="start" fill="${deliveryColor}">UNPL — ${x.unpl}/mo</text>`;
+    }
+    svg += `<line x1="${marginL}" y1="${yL}" x2="${W-marginR}" y2="${yL}" stroke="${deliveryColor}" stroke-width="2.5" stroke-dasharray="9,3,2,3" fill="none"/>`;
+    svg += `<text class="pct-text" x="${marginL+4}" y="${yL+13}" text-anchor="start" fill="${deliveryColor}">LNPL — ${x.lnpl}/mo${x.lnplClipped ? ' (clipped at 0)' : ''}</text>`;
+  }
+
+  if (series.length) {
+    const pointsStr = series.map(s => {
+      const px = xScale(s.date.getTime(), minTs, maxTs);
+      const py = yScale(s.lead, yMax);
+      return `${px},${py}`;
+    }).join(' ');
+    svg += `<polyline points="${pointsStr}" fill="none" stroke="${deliveryColor}" stroke-width="1.5" stroke-opacity="0.5"/>`;
+
+    series.forEach(s => {
+      const px = xScale(s.date.getTime(), minTs, maxTs);
+      const py = yScale(s.lead, yMax);
+      const dataIdx = tooltipData.length;
+      tooltipData.push({ date: s.date, count: s.lead });
+      svg += `<circle class="mrpt" data-idx="${dataIdx}" cx="${px}" cy="${py}" r="5" fill="${deliveryColor}" fill-opacity="0.85" stroke="${deliveryColor}"/>`;
+    });
+  }
+
+  svg += `</svg>`;
+
+  deliveryXContainer.querySelectorAll('svg').forEach(el => el.remove());
+  deliveryXContainer.insertAdjacentHTML('afterbegin', svg);
+
+  deliveryXContainer.querySelectorAll('.mrpt').forEach(circle => {
+    circle.addEventListener('mousemove', (e) => {
+      const idx = +circle.getAttribute('data-idx');
+      const d = tooltipData[idx];
+      const label = d.date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      deliveryXTooltip.textContent = `${label} · ${d.count} deliveries`;
+      const rect = deliveryXContainer.getBoundingClientRect();
+      deliveryXTooltip.style.left = (e.clientX - rect.left) + 'px';
+      deliveryXTooltip.style.top = (e.clientY - rect.top) + 'px';
+      deliveryXTooltip.classList.add('show');
+    });
+    circle.addEventListener('mouseleave', () => deliveryXTooltip.classList.remove('show'));
+  });
+}
+
+// Delivery rate: moving range of month-to-month change in delivery count.
+function renderDeliveryMRChart(){
+  const { minTs, maxTs } = getDeliveryChartBounds();
+  const yMax = yMaxValDeliveryMR();
+  let svg = buildBaseSvg(minTs, maxTs, yMax, 'Moving Range (deliveries)');
+
+  const m = lastRefresh.deliveryMR;
+  const tooltipData = [];
+
+  if (m) {
+    const yAvg = yScale(m.mrBar, yMax);
+    const yU = yScale(Math.min(m.url, yMax), yMax);
+    const yL = yScale(m.lrl, yMax);
+
+    const zoneOpacities = [0.05, 0.10, 0.16];
+    const upperSpan = yAvg - yU;
+    if (upperSpan > 0) {
+      const h = upperSpan / 3;
+      for (let i = 0; i < 3; i++) {
+        const yTop = yAvg - h * (i + 1);
+        svg += `<rect x="${marginL}" y="${yTop}" width="${plotW}" height="${h}" fill="${deliveryColor}" fill-opacity="${zoneOpacities[i]}"/>`;
+      }
+    }
+    const lowerSpan = yL - yAvg;
+    if (lowerSpan > 0) {
+      const h = lowerSpan / 3;
+      for (let i = 0; i < 3; i++) {
+        const yTop = yAvg + h * i;
+        svg += `<rect x="${marginL}" y="${yTop}" width="${plotW}" height="${h}" fill="${deliveryColor}" fill-opacity="${zoneOpacities[i]}"/>`;
+      }
+    }
+
+    svg += `<line x1="${marginL}" y1="${yAvg}" x2="${W-marginR}" y2="${yAvg}" stroke="${deliveryColor}" stroke-width="2" fill="none"/>`;
+    svg += `<text class="pct-text" x="${marginL+4}" y="${yAvg-5}" text-anchor="start" fill="${deliveryColor}">avg mR — ${m.mrBar}</text>`;
+
+    if (m.url <= yMax) {
+      svg += `<line x1="${marginL}" y1="${yU}" x2="${W-marginR}" y2="${yU}" stroke="${deliveryColor}" stroke-width="2.5" stroke-dasharray="9,3,2,3" fill="none"/>`;
+      svg += `<text class="pct-text" x="${marginL+4}" y="${yU-5}" text-anchor="start" fill="${deliveryColor}">URL — ${m.url}</text>`;
+    }
+    svg += `<line x1="${marginL}" y1="${yL}" x2="${W-marginR}" y2="${yL}" stroke="${deliveryColor}" stroke-width="2.5" stroke-dasharray="9,3,2,3" fill="none"/>`;
+    svg += `<text class="pct-text" x="${marginL+4}" y="${yL-5}" text-anchor="start" fill="${deliveryColor}">LRL — 0</text>`;
+
+    if (m.series.length) {
+      const pointsStr = m.series.map(pt => {
+        const px = xScale(pt.date.getTime(), minTs, maxTs);
+        const py = yScale(pt.mr, yMax);
+        return `${px},${py}`;
+      }).join(' ');
+      svg += `<polyline points="${pointsStr}" fill="none" stroke="${deliveryColor}" stroke-width="1.5" stroke-opacity="0.5"/>`;
+
+      m.series.forEach(pt => {
+        const px = xScale(pt.date.getTime(), minTs, maxTs);
+        const py = yScale(pt.mr, yMax);
+        const dataIdx = tooltipData.length;
+        tooltipData.push({ date: pt.date, mr: pt.mr });
+        svg += `<circle class="mrpt" data-idx="${dataIdx}" cx="${px}" cy="${py}" r="5" fill="${deliveryColor}" fill-opacity="0.85" stroke="${deliveryColor}"/>`;
+      });
+    }
+  }
+
+  svg += `</svg>`;
+
+  deliveryMRContainer.querySelectorAll('svg').forEach(el => el.remove());
+  deliveryMRContainer.insertAdjacentHTML('afterbegin', svg);
+
+  deliveryMRContainer.querySelectorAll('.mrpt').forEach(circle => {
+    circle.addEventListener('mousemove', (e) => {
+      const idx = +circle.getAttribute('data-idx');
+      const d = tooltipData[idx];
+      const label = d.date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+      deliveryMRTooltip.textContent = `${label} · moving range ${d.mr}`;
+      const rect = deliveryMRContainer.getBoundingClientRect();
+      deliveryMRTooltip.style.left = (e.clientX - rect.left) + 'px';
+      deliveryMRTooltip.style.top = (e.clientY - rect.top) + 'px';
+      deliveryMRTooltip.classList.add('show');
+    });
+    circle.addEventListener('mouseleave', () => deliveryMRTooltip.classList.remove('show'));
+  });
+}
+
 function renderAll(){
   renderScatter();
   renderOverallBehaviourChart();
   renderBehaviourChart();
   renderOverallMRChart();
   renderMovingRangeChart();
+  renderDeliveryXChart();
+  renderDeliveryMRChart();
 }
 
 
@@ -1229,6 +1464,29 @@ function updateStats(){
     </tr>`;
   });
   mrTable.innerHTML = mrHtml;
+
+  // Delivery rate — X-chart table
+  const deliveryXTable = document.getElementById('deliveryXTable');
+  const dx = lastRefresh.deliveryXmR;
+  deliveryXTable.innerHTML = `<tr><th>Months</th><th>Average / month</th><th>Avg moving range</th><th>UNPL</th><th>LNPL</th></tr>
+    <tr>
+      <td>${dx ? dx.n : (dx === null ? 'n<2' : '—')}</td>
+      <td>${dx ? dx.avg + '/mo' : '—'}</td>
+      <td>${dx ? dx.mrBar : '—'}</td>
+      <td>${dx ? dx.unpl + '/mo' : '—'}</td>
+      <td>${dx ? dx.lnpl + '/mo' + (dx.lnplClipped ? ' *' : '') : '—'}</td>
+    </tr>`;
+
+  // Delivery rate — MR-chart table
+  const deliveryMRTable = document.getElementById('deliveryMRTable');
+  const dm = lastRefresh.deliveryMR;
+  deliveryMRTable.innerHTML = `<tr><th>Moving ranges (n)</th><th>Average mR (CL)</th><th>URL (3.27×)</th><th>LRL</th></tr>
+    <tr>
+      <td>${dm ? dm.n : (dm === null ? 'n<2' : '—')}</td>
+      <td>${dm ? dm.mrBar : '—'}</td>
+      <td>${dm ? dm.url : '—'}</td>
+      <td>${dm ? dm.lrl : '—'}</td>
+    </tr>`;
 
   // Signal notifications
   const notifEl = document.getElementById('mrNotifications');
