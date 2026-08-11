@@ -1,1 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monte Carlo Backlog Forecast Dashboard</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
+            padding: 2rem 1rem;
+            min-height: 100vh;
+            color: #1a1a1a;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07), 0 10px 20px rgba(0, 0, 0, 0.05);
+            padding: 2.5rem;
+        }
+
+        header {
+            margin-bottom: 2rem;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 1.5rem;
+        }
+
+        h1 {
+            font-size: 28px;
+            color: #1a1a1a;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            color: #888;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 12px;
+            margin-bottom: 2rem;
+        }
+
+        .metric-card {
+            background: #f9f9f9;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .metric-label {
+            font-size: 12px;
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+
+        .metric-value {
+            font-size: 24px;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+
+        .metric-value.danger {
+            color: #d73a49;
+        }
+
+        .metric-value.success {
+            color: #28a745;
+        }
+
+        .section {
+            margin-bottom: 2.5rem;
+        }
+
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: #1a1a1a;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .percentile-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .percentile-item {
+            background: #f9f9f9;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 1rem;
+        }
+
+        .percentile-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 0.75rem;
+        }
+
+        .percentile-label {
+            font-size: 13px;
+            color: #666;
+            font-weight: 500;
+        }
+
+        .percentile-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+
+        input[type="range"] {
+            width: 100%;
+            height: 4px;
+            border-radius: 3px;
+            background: #e0e0e0;
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+            cursor: not-allowed;
+        }
+
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #0066cc;
+            cursor: pointer;
+        }
+
+        input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #0066cc;
+            cursor: pointer;
+            border: none;
+        }
+
+        .button-group {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 8px;
+            margin-bottom: 1rem;
+        }
+
+        button {
+            padding: 10px 16px;
+            border: 1px solid #d0d0d0;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            font-size: 13px;
+            font-weight: 500;
+            color: #1a1a1a;
+            transition: all 0.2s ease;
+        }
+
+        button:hover {
+            background: #f5f5f5;
+            border-color: #0066cc;
+            color: #0066cc;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        .chart-container {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 1rem;
+            position: relative;
+            height: 350px;
+            margin-bottom: 1rem;
+        }
+
+        .assumptions {
+            background: #f9f9f9;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 1rem;
+            font-size: 13px;
+            color: #555;
+            line-height: 1.6;
+        }
+
+        .assumptions h3 {
+            font-size: 14px;
+            color: #1a1a1a;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+        }
+
+        .assumptions ul {
+            margin-left: 20px;
+        }
+
+        .assumptions li {
+            margin-bottom: 0.5rem;
+        }
+
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 350px;
+            font-size: 14px;
+            color: #999;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 1.5rem;
+            }
+
+            h1 {
+                font-size: 22px;
+            }
+
+            .metrics-grid {
+                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            }
+
+            .percentile-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .metric-value {
+                font-size: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 Monte Carlo Backlog Forecast</h1>
+            <p class="subtitle">Realistic delivery date estimation based on historical sprint velocity</p>
+        </header>
+
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-label">Current Backlog</div>
+                <div class="metric-value" id="backlog-display">62</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Items by EOY 2026</div>
+                <div class="metric-value success" id="eoy-items">—</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Avg. Completion (50th %ile)</div>
+                <div class="metric-value" id="avg-completion">—</div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-label">Target Date</div>
+                <div class="metric-value danger">Feb 2027</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2 class="section-title">Completion Date Percentiles</h2>
+            <div class="percentile-grid">
+                <div class="percentile-item">
+                    <div class="percentile-header">
+                        <span class="percentile-label">85th Percentile (Reasonable Confidence)</span>
+                        <span class="percentile-value" id="p85-value">—</span>
+                    </div>
+                    <input type="range" id="p85" min="0" max="100" value="85" disabled />
+                </div>
+                <div class="percentile-item">
+                    <div class="percentile-header">
+                        <span class="percentile-label">95th Percentile (High Confidence)</span>
+                        <span class="percentile-value" id="p95-value">—</span>
+                    </div>
+                    <input type="range" id="p95" min="0" max="100" value="95" disabled />
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2 class="section-title">Scenario Analysis</h2>
+            <p style="font-size: 13px; color: #666; margin-bottom: 1rem;">Test different backlog sizes to see impact on delivery dates</p>
+            <div class="button-group">
+                <button onclick="updateBacklog(62 * 1.20);">Backlog +20%</button>
+                <button onclick="updateBacklog(62 * 1.25);">Backlog +25%</button>
+                <button onclick="updateBacklog(62 * 1.30);">Backlog +30%</button>
+                <button onclick="updateBacklog(62);">Reset to 62</button>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2 class="section-title">Distribution of Completion Dates</h2>
+            <div class="chart-container">
+                <div class="loading">Loading chart...</div>
+                <canvas id="histogramChart" style="display: none;"></canvas>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2 class="section-title">Assumptions & Parameters</h2>
+            <div class="assumptions">
+                <h3>Simulation Settings</h3>
+                <ul>
+                    <li><strong>Sprint Cycle:</strong> 2-week sprints starting September 2026</li>
+                    <li><strong>September Constraint:</strong> 25% capacity reduction in first sprint</li>
+                    <li><strong>December Constraint:</strong> Minimum historical velocity (2 items) applied</li>
+                    <li><strong>Historical Data:</strong> 11 sprints with velocities: 5, 4, 4, 5, 6, 4, 2, 3, 2, 5, 6</li>
+                    <li><strong>Average Velocity:</strong> 4.27 items per sprint</li>
+                    <li><strong>Monte Carlo Iterations:</strong> 10,000 simulations for statistical validity</li>
+                    <li><strong>Target Date:</strong> February 2027</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const velocities = [5, 4, 4, 5, 6, 4, 2, 3, 2, 5, 6];
+        let chart = null;
+
+        function runMonteCarlo(backlog, iterations = 10000) {
+            const results = [];
+            const septemberStartDate = new Date(2026, 8, 1);
+            const sprintLength = 14;
+            const eoyDate = new Date(2026, 11, 31);
+            
+            for (let sim = 0; sim < iterations; sim++) {
+                let remaining = backlog;
+                let sprintNum = 0;
+                let completionDate = null;
+                let itemsDeliveredByEOY = 0;
+                let totalDelivered = 0;
+                
+                while (remaining > 0 && sprintNum < 200) {
+                    const currentDate = new Date(septemberStartDate);
+                    currentDate.setDate(currentDate.getDate() + sprintNum * sprintLength);
+                    
+                    const month = currentDate.getMonth();
+                    let velocity;
+                    
+                    // September: 25% capacity reduction
+                    if (month === 8 && sprintNum === 0) {
+                        velocity = Math.round(velocities[Math.floor(Math.random() * velocities.length)] * 0.75 * 10) / 10;
+                    } 
+                    // December: minimum velocity
+                    else if (month === 11) {
+                        velocity = Math.min(...velocities);
+                    } 
+                    // Other months: random from historical data
+                    else {
+                        velocity = velocities[Math.floor(Math.random() * velocities.length)];
+                    }
+                    
+                    totalDelivered += velocity;
+                    remaining -= velocity;
+                    
+                    // Track items delivered by EOY
+                    if (currentDate <= eoyDate) {
+                        itemsDeliveredByEOY = Math.min(totalDelivered, backlog);
+                    }
+                    
+                    // Record completion date when backlog is cleared
+                    if (remaining <= 0) {
+                        completionDate = new Date(currentDate);
+                    }
+                    
+                    sprintNum++;
+                }
+                
+                results.push({
+                    completionDate: completionDate || new Date(2027, 11, 31),
+                    itemsDeliveredByEOY,
+                    daysFromStart: completionDate ? Math.round((completionDate - septemberStartDate) / (1000 * 60 * 60 * 24)) : 500
+                });
+            }
+            
+            return results;
+        }
+
+        function formatDate(date) {
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            return months[date.getMonth()] + ' ' + date.getDate() + ', ' + date.getFullYear();
+        }
+
+        function updateDisplay(backlog) {
+            document.getElementById('backlog-display').textContent = Math.round(backlog);
+            
+            const results = runMonteCarlo(backlog);
+            
+            const sortedByDate = [...results].sort((a, b) => a.completionDate - b.completionDate);
+            const p85Index = Math.floor(results.length * 0.85);
+            const p95Index = Math.floor(results.length * 0.95);
+            const avgIndex = Math.floor(results.length * 0.50);
+            
+            const p85Date = sortedByDate[p85Index].completionDate;
+            const p95Date = sortedByDate[p95Index].completionDate;
+            const avgDate = sortedByDate[avgIndex].completionDate;
+            const eoyItems = Math.round(results.reduce((a, b) => a + b.itemsDeliveredByEOY, 0) / results.length);
+            
+            document.getElementById('p85-value').textContent = formatDate(p85Date);
+            document.getElementById('p95-value').textContent = formatDate(p95Date);
+            document.getElementById('avg-completion').textContent = formatDate(avgDate);
+            document.getElementById('eoy-items').textContent = eoyItems;
+            
+            // Create histogram data
+            const dateGroups = {};
+            results.forEach(r => {
+                const month = r.completionDate.getMonth();
+                const year = r.completionDate.getFullYear();
+                const key = year + '-' + month;
+                dateGroups[key] = (dateGroups[key] || 0) + 1;
+            });
+            
+            const sortedKeys = Object.keys(dateGroups).sort();
+            const labels = sortedKeys.map(k => {
+                const [year, month] = k.split('-');
+                const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                return months[parseInt(month)] + ' ' + year;
+            });
+            const values = sortedKeys.map(k => dateGroups[k]);
+            
+            // Destroy old chart if exists
+            if (chart) chart.destroy();
+            
+            // Create new chart
+            const canvas = document.getElementById('histogramChart');
+            canvas.style.display = 'block';
+            canvas.previousElementSibling.style.display = 'none';
+            
+            const ctx = canvas.getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'Number of Simulations',
+                        data: values,
+                        backgroundColor: '#0066cc',
+                        borderColor: '#0052a3',
+                        borderWidth: 0,
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { 
+                            display: false
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: { 
+                                color: '#666',
+                                font: { size: 12 }
+                            },
+                            grid: { 
+                                color: '#f0f0f0',
+                                drawBorder: false
+                            }
+                        },
+                        x: {
+                            ticks: { 
+                                color: '#666',
+                                font: { size: 12 }
+                            },
+                            grid: { 
+                                display: false,
+                                drawBorder: false
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateBacklog(newBacklog) {
+            updateDisplay(newBacklog);
+        }
+
+        // Initialize on page load
+        window.addEventListener('load', () => {
+            updateDisplay(62);
+        });
+    </script>
+</body>
+</html>
