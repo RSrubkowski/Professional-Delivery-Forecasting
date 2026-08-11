@@ -151,6 +151,8 @@
   .pt{ cursor: pointer; }
   .pt:hover{ stroke: #111827; stroke-width: 2; }
   .pt.excluded{ fill-opacity: 0.15 !important; stroke-dasharray: 2,2; }
+  .mrpt{ cursor: default; }
+  .mrpt:hover{ stroke: #111827; stroke-width: 2; }
 
   .tooltip{
     position: absolute;
@@ -230,6 +232,7 @@
   .tab-btn.active{ background: var(--accent); color:#fff; border-color: var(--accent); }
   .tab-panel{ display:none; }
   .tab-panel.active{ display:block; }
+  #chartTabs{ margin-bottom: 18px; }
 
   .dropzone{
     border: 2px dashed var(--border);
@@ -279,14 +282,6 @@
         </div>
       </div>
       <div class="filter-group">
-        <span class="filter-label">Percentile scenario</span>
-        <div class="filter-options" id="percentileFilters">
-          <label class="chip" data-pct="p50"><input type="checkbox" checked><span class="line-swatch dotted"></span>50th</label>
-          <label class="chip" data-pct="p85"><input type="checkbox" checked><span class="line-swatch dashed"></span>85th</label>
-          <label class="chip" data-pct="p95"><input type="checkbox" checked><span class="line-swatch longdash"></span>95th</label>
-        </div>
-      </div>
-      <div class="filter-group">
         <span class="filter-label">Analysis time period</span>
         <div class="date-range">
           <input type="date" id="dateFrom">
@@ -302,34 +297,58 @@
           <button class="quick-btn" data-months="all">All</button>
         </div>
       </div>
-      <div class="filter-group">
-        <span class="filter-label">Behaviour chart</span>
-        <label class="switch-row" for="behaviourToggle">
-          <span class="switch">
-            <input type="checkbox" id="behaviourToggle">
-            <span class="slider"></span>
-          </span>
-          <span class="switch-label">Show natural process limits (XmR)</span>
-        </label>
-      </div>
     </div>
 
     <div class="stale-banner" id="staleBanner">
-      <span>Data or filters changed — the percentile lines below reflect the last refresh.</span>
+      <span>Data or filters changed — the chart(s) below reflect the last refresh.</span>
       <button class="btn btn-primary" id="refreshBtnInline">Refresh Prognosis</button>
     </div>
 
-    <div class="chart-container" id="chartContainer">
-      <div class="tooltip" id="tooltip"></div>
+    <div class="tabs" id="chartTabs">
+      <button class="tab-btn active" data-chart-tab="scatter">Scatter Chart</button>
+      <button class="tab-btn" data-chart-tab="behaviour">Behaviour Chart</button>
+      <button class="tab-btn" data-chart-tab="mr">Moving Range Chart</button>
     </div>
-    <p class="chart-hint">Click any point on the chart to mark it as noise (excluded from the analysis) — click again to restore it. You can also manage points in the table below.</p>
 
-    <div class="stats" id="statBox"></div>
+    <div class="tab-panel active" id="chart-tab-scatter">
+      <div class="filter-group" style="margin-bottom:16px;">
+        <span class="filter-label">Percentile scenario</span>
+        <div class="filter-options" id="percentileFilters">
+          <label class="chip" data-pct="p50"><input type="checkbox" checked><span class="line-swatch dotted"></span>50th</label>
+          <label class="chip" data-pct="p85"><input type="checkbox" checked><span class="line-swatch dashed"></span>85th</label>
+          <label class="chip" data-pct="p95"><input type="checkbox" checked><span class="line-swatch longdash"></span>95th</label>
+        </div>
+      </div>
 
-    <table class="pct-table" id="pctTable"></table>
+      <div class="chart-container" id="chartContainer">
+        <div class="tooltip" id="tooltip"></div>
+      </div>
+      <p class="chart-hint">Click any point on the chart to mark it as noise (excluded from the analysis) — click again to restore it. You can also manage points in the table below.</p>
 
-    <table class="pct-table" id="xmrTable" style="display:none;"></table>
-    <p class="chart-hint" id="xmrHint" style="display:none;">Natural process limits = average ± 2.66 × average moving range (consecutive point-to-point difference), per ticket size, using currently active data. Needs at least 2 points per size.</p>
+      <div class="stats" id="statBox"></div>
+
+      <table class="pct-table" id="pctTable"></table>
+    </div>
+
+    <div class="tab-panel" id="chart-tab-behaviour">
+      <div class="chart-container" id="behaviourChartContainer">
+        <div class="tooltip" id="behaviourTooltip"></div>
+      </div>
+      <p class="chart-hint">Shaded bands mark the zone between the average and each natural process limit. Click any point to mark it as noise — click again to restore it.</p>
+
+      <table class="pct-table" id="xmrTable"></table>
+      <p class="chart-hint">Natural process limits = average ± 2.66 × average moving range (consecutive point-to-point difference), per ticket size, using currently active data. Needs at least 2 points per size.</p>
+    </div>
+
+    <div class="tab-panel" id="chart-tab-mr">
+      <div class="chart-container" id="mrChartContainer">
+        <div class="tooltip" id="mrTooltip"></div>
+      </div>
+      <p class="chart-hint">Each point is the absolute difference between consecutive completions (in chronological order), per ticket size.</p>
+
+      <table class="pct-table" id="mrTable"></table>
+      <p class="chart-hint">Upper Range Limit (URL) = 3.27 × average moving range. The lower limit for a moving-range chart is mathematically 0 (ranges can't be negative), so it's shown flat at the bottom. Needs at least 2 points per size.</p>
+    </div>
   </div>
 
   <div class="card">
@@ -417,12 +436,15 @@ const activePct = { p50: true, p85: true, p95: true };
 const dashPatterns = { p50: '2,3', p85: '7,4', p95: '11,3,2,3' };
 const pctLabel = { p50: '50th', p85: '85th', p95: '95th' };
 
-let lastRefresh = { sizePcts: {}, sizeXmR: {}, key: null };
+let lastRefresh = { sizePcts: {}, sizeXmR: {}, sizeMR: {}, key: null };
 let isStale = false;
-let behaviourEnabled = false;
 
 const container = document.getElementById('chartContainer');
 const tooltip = document.getElementById('tooltip');
+const behaviourContainer = document.getElementById('behaviourChartContainer');
+const behaviourTooltip = document.getElementById('behaviourTooltip');
+const mrContainer = document.getElementById('mrChartContainer');
+const mrTooltip = document.getElementById('mrTooltip');
 const staleBanner = document.getElementById('staleBanner');
 
 const dateFromInput = document.getElementById('dateFrom');
@@ -519,14 +541,46 @@ function computeSizeXmR(points){
   return out;
 }
 
+// Moving Range chart: plots each consecutive |Xi - Xi-1|, with URL = 3.27 * average moving range.
+// LRL is mathematically 0 for an individuals moving-range chart (ranges can't be negative).
+const MR_URL_CONSTANT = 3.27;
+function computeMRSeries(points){
+  const sorted = [...points].sort((a,b) => a.date - b.date);
+  if (sorted.length < 2) return null;
+
+  const series = [];
+  for (let i = 1; i < sorted.length; i++) {
+    series.push({ date: sorted[i].date, mr: Math.abs(sorted[i].lead - sorted[i-1].lead) });
+  }
+  const mrBar = series.reduce((a,b) => a + b.mr, 0) / series.length;
+  const url = mrBar * MR_URL_CONSTANT;
+
+  return {
+    series,
+    mrBar: +mrBar.toFixed(1),
+    url: +url.toFixed(1),
+    lrl: 0,
+    n: series.length
+  };
+}
+
+function computeSizeMR(points){
+  const out = {};
+  ['S','M','L'].forEach(size => {
+    out[size] = computeMRSeries(points.filter(r => r.size === size));
+  });
+  return out;
+}
+
 function refreshPrognosis(){
   const points = analysisPoints();
   lastRefresh.sizePcts = computeSizePcts(points);
   lastRefresh.sizeXmR = computeSizeXmR(points);
+  lastRefresh.sizeMR = computeSizeMR(points);
   lastRefresh.key = currentStateKey();
   isStale = false;
   staleBanner.classList.remove('show');
-  render();
+  renderAll();
   updateStats();
 }
 
@@ -545,16 +599,29 @@ function xScale(ts, minTs, maxTs){
   if (maxTs === minTs) return marginL + plotW/2;
   return marginL + ((ts - minTs) / (maxTs - minTs)) * plotW;
 }
-function yMaxVal(){
+function yMaxValScatter(){
+  const leads = dataset.map(r => r.lead);
+  const maxLead = leads.length ? Math.max(...leads) : 10;
+  return Math.ceil((maxLead * 1.08) / 10) * 10;
+}
+function yMaxValBehaviour(){
   const leads = dataset.map(r => r.lead);
   let maxLead = leads.length ? Math.max(...leads) : 10;
-  if (behaviourEnabled) {
-    ['S','M','L'].forEach(size => {
-      const x = lastRefresh.sizeXmR && lastRefresh.sizeXmR[size];
-      if (x && activeSizes[size] && x.unpl > maxLead) maxLead = x.unpl;
-    });
-  }
+  ['S','M','L'].forEach(size => {
+    const x = lastRefresh.sizeXmR && lastRefresh.sizeXmR[size];
+    if (x && activeSizes[size] && x.unpl > maxLead) maxLead = x.unpl;
+  });
   return Math.ceil((maxLead * 1.08) / 10) * 10;
+}
+function yMaxValMR(){
+  let maxVal = 10;
+  ['S','M','L'].forEach(size => {
+    const m = lastRefresh.sizeMR && lastRefresh.sizeMR[size];
+    if (!m || !activeSizes[size]) return;
+    if (m.url > maxVal) maxVal = m.url;
+    m.series.forEach(pt => { if (pt.mr > maxVal) maxVal = pt.mr; });
+  });
+  return Math.ceil((maxVal * 1.08) / 10) * 10;
 }
 function yScale(val, yMax){ return marginT + plotH - (val / yMax) * plotH; }
 
@@ -569,9 +636,9 @@ function buildMonthTicks(minTs, maxTs){
   return ticks;
 }
 
-function render(){
-  const { minTs, maxTs } = getChartBounds();
-  const yMax = yMaxVal();
+// Builds grid/axes/month-ticks/out-of-range shading — shared by both charts
+function buildBaseSvg(minTs, maxTs, yMax, yLabel){
+  yLabel = yLabel || 'Lead Time (days)';
   const monthTicks = buildMonthTicks(minTs, maxTs);
   const yTicks = [];
   const step = yMax / 5;
@@ -607,7 +674,54 @@ function render(){
   }
 
   svg += `<text class="axis-title" x="${marginL + plotW/2}" y="${H-6}" text-anchor="middle">Completion Date</text>`;
-  svg += `<text class="axis-title" transform="translate(16, ${marginT+plotH/2}) rotate(-90)" text-anchor="middle">Lead Time (days)</text>`;
+  svg += `<text class="axis-title" transform="translate(16, ${marginT+plotH/2}) rotate(-90)" text-anchor="middle">${yLabel}</text>`;
+
+  return svg;
+}
+
+// Builds the data-point circles — shared by both charts
+function buildDotsSvg(minTs, maxTs, yMax){
+  let svg = '';
+  dataset.forEach(r => {
+    if (!activeSizes[r.size]) return;
+    const x = xScale(r.date.getTime(), minTs, maxTs);
+    const y = yScale(r.lead, yMax);
+    const cls = r.excluded ? 'pt excluded' : 'pt';
+    svg += `<circle class="${cls}" data-id="${r.id}" cx="${x}" cy="${y}" r="5.5" fill="${colors[r.size]}" fill-opacity="${r.excluded ? 0.15 : 0.85}" stroke="${colors[r.size]}"/>`;
+  });
+  return svg;
+}
+
+// Wires tooltip + click-to-exclude behaviour for a chart's dots
+function wireDots(containerEl, tooltipEl){
+  containerEl.querySelectorAll('.pt').forEach(circle => {
+    circle.addEventListener('mousemove', (e) => {
+      const id = +circle.getAttribute('data-id');
+      const r = dataset.find(d => d.id === id);
+      const dateStr = r.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      tooltipEl.textContent = `${dateStr} · Size ${r.size} · ${r.lead} days${r.excluded ? ' · excluded' : ''} — click to ${r.excluded ? 'restore' : 'exclude'}`;
+      const rect = containerEl.getBoundingClientRect();
+      tooltipEl.style.left = (e.clientX - rect.left) + 'px';
+      tooltipEl.style.top = (e.clientY - rect.top) + 'px';
+      tooltipEl.classList.add('show');
+    });
+    circle.addEventListener('mouseleave', () => tooltipEl.classList.remove('show'));
+    circle.addEventListener('click', () => {
+      const id = +circle.getAttribute('data-id');
+      const r = dataset.find(d => d.id === id);
+      r.excluded = !r.excluded;
+      markStale();
+      renderAll();
+      renderDataTable();
+      updateStats();
+    });
+  });
+}
+
+function renderScatter(){
+  const { minTs, maxTs } = getChartBounds();
+  const yMax = yMaxValScatter();
+  let svg = buildBaseSvg(minTs, maxTs, yMax);
 
   // percentile lines from LAST REFRESH snapshot
   const activeSizeList = ['S','M','L'].filter(s => activeSizes[s]);
@@ -624,69 +738,149 @@ function render(){
     });
   });
 
-  // XmR natural process limits from LAST REFRESH snapshot
-  if (behaviourEnabled) {
-    activeSizeList.forEach(size => {
-      const x = lastRefresh.sizeXmR[size];
-      if (!x) return;
-      const color = colors[size];
-
-      const yAvg = yScale(x.avg, yMax);
-      const yU = yScale(Math.min(x.unpl, yMax), yMax);
-      const yL = yScale(x.lnpl, yMax);
-
-      // shaded bands: average -> UNPL, average -> LNPL
-      svg += `<rect x="${marginL}" y="${yU}" width="${plotW}" height="${yAvg - yU}" fill="${color}" fill-opacity="0.07"/>`;
-      svg += `<rect x="${marginL}" y="${yAvg}" width="${plotW}" height="${yL - yAvg}" fill="${color}" fill-opacity="0.07"/>`;
-
-      svg += `<line x1="${marginL}" y1="${yAvg}" x2="${W-marginR}" y2="${yAvg}" stroke="${color}" stroke-width="1.5" fill="none"/>`;
-      svg += `<text class="pct-text" x="${marginL+4}" y="${yAvg-5}" text-anchor="start" fill="${color}">${size} avg — ${x.avg}d</text>`;
-
-      if (x.unpl <= yMax) {
-        svg += `<line x1="${marginL}" y1="${yU}" x2="${W-marginR}" y2="${yU}" stroke="${color}" stroke-width="2" stroke-dasharray="9,3,2,3" fill="none"/>`;
-        svg += `<text class="pct-text" x="${marginL+4}" y="${yU-5}" text-anchor="start" fill="${color}">${size} UNPL — ${x.unpl}d</text>`;
-      }
-      svg += `<line x1="${marginL}" y1="${yL}" x2="${W-marginR}" y2="${yL}" stroke="${color}" stroke-width="2" stroke-dasharray="9,3,2,3" fill="none"/>`;
-      svg += `<text class="pct-text" x="${marginL+4}" y="${yL+13}" text-anchor="start" fill="${color}">${size} LNPL — ${x.lnpl}d${x.lnplClipped ? ' (clipped at 0)' : ''}</text>`;
-    });
-  }
-
-  dataset.forEach(r => {
-    if (!activeSizes[r.size]) return;
-    const x = xScale(r.date.getTime(), minTs, maxTs);
-    const y = yScale(r.lead, yMax);
-    const cls = r.excluded ? 'pt excluded' : 'pt';
-    svg += `<circle class="${cls}" data-id="${r.id}" cx="${x}" cy="${y}" r="5.5" fill="${colors[r.size]}" fill-opacity="${r.excluded ? 0.15 : 0.85}" stroke="${colors[r.size]}"/>`;
-  });
-
+  svg += buildDotsSvg(minTs, maxTs, yMax);
   svg += `</svg>`;
 
   container.querySelectorAll('svg').forEach(el => el.remove());
   container.insertAdjacentHTML('afterbegin', svg);
+  wireDots(container, tooltip);
+}
 
-  container.querySelectorAll('.pt').forEach(circle => {
+function renderBehaviourChart(){
+  const { minTs, maxTs } = getChartBounds();
+  const yMax = yMaxValBehaviour();
+  let svg = buildBaseSvg(minTs, maxTs, yMax);
+
+  // XmR natural process limits from LAST REFRESH snapshot
+  const activeSizeList = ['S','M','L'].filter(s => activeSizes[s]);
+  activeSizeList.forEach(size => {
+    const x = lastRefresh.sizeXmR[size];
+    if (!x) return;
+    const color = colors[size];
+
+    const yAvg = yScale(x.avg, yMax);
+    const yU = yScale(Math.min(x.unpl, yMax), yMax);
+    const yL = yScale(x.lnpl, yMax);
+
+    // shaded bands: average -> UNPL, average -> LNPL
+    svg += `<rect x="${marginL}" y="${yU}" width="${plotW}" height="${yAvg - yU}" fill="${color}" fill-opacity="0.07"/>`;
+    svg += `<rect x="${marginL}" y="${yAvg}" width="${plotW}" height="${yL - yAvg}" fill="${color}" fill-opacity="0.07"/>`;
+
+    svg += `<line x1="${marginL}" y1="${yAvg}" x2="${W-marginR}" y2="${yAvg}" stroke="${color}" stroke-width="1.5" fill="none"/>`;
+    svg += `<text class="pct-text" x="${marginL+4}" y="${yAvg-5}" text-anchor="start" fill="${color}">${size} avg — ${x.avg}d</text>`;
+
+    if (x.unpl <= yMax) {
+      svg += `<line x1="${marginL}" y1="${yU}" x2="${W-marginR}" y2="${yU}" stroke="${color}" stroke-width="2" stroke-dasharray="9,3,2,3" fill="none"/>`;
+      svg += `<text class="pct-text" x="${marginL+4}" y="${yU-5}" text-anchor="start" fill="${color}">${size} UNPL — ${x.unpl}d</text>`;
+    }
+    svg += `<line x1="${marginL}" y1="${yL}" x2="${W-marginR}" y2="${yL}" stroke="${color}" stroke-width="2" stroke-dasharray="9,3,2,3" fill="none"/>`;
+    svg += `<text class="pct-text" x="${marginL+4}" y="${yL+13}" text-anchor="start" fill="${color}">${size} LNPL — ${x.lnpl}d${x.lnplClipped ? ' (clipped at 0)' : ''}</text>`;
+  });
+
+  svg += buildDotsSvg(minTs, maxTs, yMax);
+  svg += `</svg>`;
+
+  behaviourContainer.querySelectorAll('svg').forEach(el => el.remove());
+  behaviourContainer.insertAdjacentHTML('afterbegin', svg);
+  wireDots(behaviourContainer, behaviourTooltip);
+}
+
+function renderMovingRangeChart(){
+  const { minTs, maxTs } = getChartBounds();
+  const yMax = yMaxValMR();
+  let svg = buildBaseSvg(minTs, maxTs, yMax, 'Moving Range (days)');
+
+  const activeSizeList = ['S','M','L'].filter(s => activeSizes[s]);
+  const tooltipData = []; // { size, idx, date, mr }
+
+  activeSizeList.forEach(size => {
+    const m = lastRefresh.sizeMR[size];
+    if (!m) return;
+    const color = colors[size];
+
+    const yAvg = yScale(m.mrBar, yMax);
+    const yU = yScale(Math.min(m.url, yMax), yMax);
+    const yL = yScale(m.lrl, yMax);
+
+    // shaded zone bands: average -> URL, average -> LRL (0), each split into 3 equal
+    // thirds, getting darker the closer to the outer limit (classic Shewhart zones).
+    const zoneOpacities = [0.05, 0.10, 0.16]; // near center -> near limit
+
+    const upperSpan = yAvg - yU; // pixel height between avg and URL (0 if URL is off-scale)
+    if (upperSpan > 0) {
+      const h = upperSpan / 3;
+      // slice 0 = nearest avg (lightest) ... slice 2 = nearest URL (darkest)
+      for (let i = 0; i < 3; i++) {
+        const yTop = yAvg - h * (i + 1);
+        svg += `<rect x="${marginL}" y="${yTop}" width="${plotW}" height="${h}" fill="${color}" fill-opacity="${zoneOpacities[i]}"/>`;
+      }
+    }
+
+    const lowerSpan = yL - yAvg; // pixel height between avg and 0
+    if (lowerSpan > 0) {
+      const h = lowerSpan / 3;
+      // slice 0 = nearest avg (lightest) ... slice 2 = nearest 0 (darkest)
+      for (let i = 0; i < 3; i++) {
+        const yTop = yAvg + h * i;
+        svg += `<rect x="${marginL}" y="${yTop}" width="${plotW}" height="${h}" fill="${color}" fill-opacity="${zoneOpacities[i]}"/>`;
+      }
+    }
+
+    svg += `<line x1="${marginL}" y1="${yAvg}" x2="${W-marginR}" y2="${yAvg}" stroke="${color}" stroke-width="1.5" fill="none"/>`;
+    svg += `<text class="pct-text" x="${marginL+4}" y="${yAvg-5}" text-anchor="start" fill="${color}">${size} avg mR — ${m.mrBar}d</text>`;
+
+    if (m.url <= yMax) {
+      svg += `<line x1="${marginL}" y1="${yU}" x2="${W-marginR}" y2="${yU}" stroke="${color}" stroke-width="2" stroke-dasharray="9,3,2,3" fill="none"/>`;
+      svg += `<text class="pct-text" x="${marginL+4}" y="${yU-5}" text-anchor="start" fill="${color}">${size} URL — ${m.url}d</text>`;
+    }
+    svg += `<line x1="${marginL}" y1="${yL}" x2="${W-marginR}" y2="${yL}" stroke="${color}" stroke-width="2" stroke-dasharray="9,3,2,3" fill="none"/>`;
+    svg += `<text class="pct-text" x="${marginL+4}" y="${yL-5}" text-anchor="start" fill="${color}">${size} LRL — 0d</text>`;
+
+    // connecting line + points
+    if (m.series.length) {
+      const pointsStr = m.series.map(pt => {
+        const x = xScale(pt.date.getTime(), minTs, maxTs);
+        const y = yScale(pt.mr, yMax);
+        return `${x},${y}`;
+      }).join(' ');
+      svg += `<polyline points="${pointsStr}" fill="none" stroke="${color}" stroke-width="1.5" stroke-opacity="0.5"/>`;
+
+      m.series.forEach((pt, idx) => {
+        const x = xScale(pt.date.getTime(), minTs, maxTs);
+        const y = yScale(pt.mr, yMax);
+        const dataIdx = tooltipData.length;
+        tooltipData.push({ size, date: pt.date, mr: pt.mr });
+        svg += `<circle class="mrpt" data-idx="${dataIdx}" cx="${x}" cy="${y}" r="4.5" fill="${color}" fill-opacity="0.85" stroke="${color}"/>`;
+      });
+    }
+  });
+
+  svg += `</svg>`;
+
+  mrContainer.querySelectorAll('svg').forEach(el => el.remove());
+  mrContainer.insertAdjacentHTML('afterbegin', svg);
+
+  mrContainer.querySelectorAll('.mrpt').forEach(circle => {
     circle.addEventListener('mousemove', (e) => {
-      const id = +circle.getAttribute('data-id');
-      const r = dataset.find(d => d.id === id);
-      const dateStr = r.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-      tooltip.textContent = `${dateStr} · Size ${r.size} · ${r.lead} days${r.excluded ? ' · excluded' : ''} — click to ${r.excluded ? 'restore' : 'exclude'}`;
-      const rect = container.getBoundingClientRect();
-      tooltip.style.left = (e.clientX - rect.left) + 'px';
-      tooltip.style.top = (e.clientY - rect.top) + 'px';
-      tooltip.classList.add('show');
+      const idx = +circle.getAttribute('data-idx');
+      const d = tooltipData[idx];
+      const dateStr = d.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      mrTooltip.textContent = `${dateStr} · Size ${d.size} · moving range ${d.mr}d`;
+      const rect = mrContainer.getBoundingClientRect();
+      mrTooltip.style.left = (e.clientX - rect.left) + 'px';
+      mrTooltip.style.top = (e.clientY - rect.top) + 'px';
+      mrTooltip.classList.add('show');
     });
-    circle.addEventListener('mouseleave', () => tooltip.classList.remove('show'));
-    circle.addEventListener('click', () => {
-      const id = +circle.getAttribute('data-id');
-      const r = dataset.find(d => d.id === id);
-      r.excluded = !r.excluded;
-      markStale();
-      render();
-      renderDataTable();
-      updateStats();
-    });
+    circle.addEventListener('mouseleave', () => mrTooltip.classList.remove('show'));
   });
 }
+
+function renderAll(){
+  renderScatter();
+  renderBehaviourChart();
+  renderMovingRangeChart();
+}
+
 
 function updateStats(){
   const points = analysisPoints().filter(r => activeSizes[r.size]);
@@ -723,27 +917,34 @@ function updateStats(){
 
   // XmR table
   const xmrTable = document.getElementById('xmrTable');
-  const xmrHint = document.getElementById('xmrHint');
-  if (behaviourEnabled) {
-    let xmrHtml = `<tr><th>Size</th><th>n</th><th>Average (CL)</th><th>Avg moving range</th><th>UNPL</th><th>LNPL</th></tr>`;
-    activeSizeList.forEach(size => {
-      const x = lastRefresh.sizeXmR[size];
-      xmrHtml += `<tr>
-        <td class="size-cell"><span class="dot" style="width:9px;height:9px;border-radius:50%;display:inline-block;background:${colors[size]}"></span>${size}</td>
-        <td>${x ? x.n : '—'}</td>
-        <td>${x ? x.avg + 'd' : '—'}</td>
-        <td>${x ? x.mrBar + 'd' : '—'}</td>
-        <td>${x ? x.unpl + 'd' : '—'}</td>
-        <td>${x ? x.lnpl + 'd' + (x.lnplClipped ? ' *' : '') : (x === null ? 'n<2' : '—')}</td>
-      </tr>`;
-    });
-    xmrTable.innerHTML = xmrHtml;
-    xmrTable.style.display = '';
-    xmrHint.style.display = '';
-  } else {
-    xmrTable.style.display = 'none';
-    xmrHint.style.display = 'none';
-  }
+  let xmrHtml = `<tr><th>Size</th><th>n</th><th>Average (CL)</th><th>Avg moving range</th><th>UNPL</th><th>LNPL</th></tr>`;
+  activeSizeList.forEach(size => {
+    const x = lastRefresh.sizeXmR[size];
+    xmrHtml += `<tr>
+      <td class="size-cell"><span class="dot" style="width:9px;height:9px;border-radius:50%;display:inline-block;background:${colors[size]}"></span>${size}</td>
+      <td>${x ? x.n : '—'}</td>
+      <td>${x ? x.avg + 'd' : '—'}</td>
+      <td>${x ? x.mrBar + 'd' : '—'}</td>
+      <td>${x ? x.unpl + 'd' : '—'}</td>
+      <td>${x ? x.lnpl + 'd' + (x.lnplClipped ? ' *' : '') : (x === null ? 'n<2' : '—')}</td>
+    </tr>`;
+  });
+  xmrTable.innerHTML = xmrHtml;
+
+  // Moving Range table
+  const mrTable = document.getElementById('mrTable');
+  let mrHtml = `<tr><th>Size</th><th>Moving ranges (n)</th><th>Average mR (CL)</th><th>URL (3.27×)</th><th>LRL</th></tr>`;
+  activeSizeList.forEach(size => {
+    const m = lastRefresh.sizeMR[size];
+    mrHtml += `<tr>
+      <td class="size-cell"><span class="dot" style="width:9px;height:9px;border-radius:50%;display:inline-block;background:${colors[size]}"></span>${size}</td>
+      <td>${m ? m.n : (m === null ? 'n<2' : '—')}</td>
+      <td>${m ? m.mrBar + 'd' : '—'}</td>
+      <td>${m ? m.url + 'd' : '—'}</td>
+      <td>${m ? m.lrl + 'd' : '—'}</td>
+    </tr>`;
+  });
+  mrTable.innerHTML = mrHtml;
 }
 
 function renderDataTable(){
@@ -792,7 +993,7 @@ function renderDataTable(){
       const r = dataset.find(d => d.id === id);
       r.excluded = !r.excluded;
       markStale();
-      render(); renderDataTable(); updateStats();
+      renderAll(); renderDataTable(); updateStats();
     });
   });
   tbody.querySelectorAll('[data-action="remove"]').forEach(btn => {
@@ -800,7 +1001,7 @@ function renderDataTable(){
       const id = +btn.getAttribute('data-id');
       dataset = dataset.filter(d => d.id !== id);
       markStale();
-      render(); renderDataTable(); updateStats();
+      renderAll(); renderDataTable(); updateStats();
     });
   });
 
@@ -842,7 +1043,7 @@ document.querySelectorAll('#sizeFilters .chip').forEach(chip => {
     input.checked = !input.checked;
     activeSizes[size] = input.checked;
     chip.classList.toggle('off', !input.checked);
-    render();
+    renderAll();
     updateStats();
   });
 });
@@ -855,22 +1056,26 @@ document.querySelectorAll('#percentileFilters .chip').forEach(chip => {
     input.checked = !input.checked;
     activePct[pct] = input.checked;
     chip.classList.toggle('off', !input.checked);
-    render();
+    renderAll();
     updateStats();
   });
 });
 
-document.getElementById('behaviourToggle').addEventListener('change', (e) => {
-  behaviourEnabled = e.target.checked;
-  render();
-  updateStats();
+// ---- Chart tab switching (Scatter / Behaviour) ----
+document.querySelectorAll('.tab-btn[data-chart-tab]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn[data-chart-tab]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel[id^="chart-tab-"]').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('chart-tab-' + btn.getAttribute('data-chart-tab')).classList.add('active');
+  });
 });
 
 [dateFromInput, dateToInput].forEach(inp => {
   inp.addEventListener('change', () => {
     clearQuickRangeActive();
     markStale();
-    render();
+    renderAll();
     updateStats();
   });
 });
@@ -904,7 +1109,7 @@ function applyQuickRange(months, btn){
   btn.classList.add('active');
 
   markStale();
-  render();
+  renderAll();
   updateStats();
 }
 
@@ -940,16 +1145,16 @@ document.getElementById('addBtn').addEventListener('click', () => {
   document.getElementById('newLead').value = '';
 
   markStale();
-  render();
+  renderAll();
   renderDataTable();
   updateStats();
 });
 
-// ---- Tabs ----
-document.querySelectorAll('.tab-btn').forEach(btn => {
+// ---- Tabs (Manage data: manual / file / paste) ----
+document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
   btn.addEventListener('click', () => {
-    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn[data-tab]').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel[id^="tab-"]').forEach(p => p.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('tab-' + btn.getAttribute('data-tab')).classList.add('active');
   });
@@ -1069,7 +1274,7 @@ function showSummary(elId, added, errors){
 function finishImport(added){
   if (added > 0) {
     markStale();
-    render();
+    renderAll();
     renderDataTable();
     updateStats();
     initDateRange(); // widen range if new dates fall outside current bounds — user can narrow again
