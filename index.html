@@ -223,6 +223,17 @@
   .toggle-btn.is-excluded{ background: #fef2f2; border-color:#fca5a5; color:#991b1b; }
   .empty-note{ color: var(--muted); font-size: 13px; padding: 14px; text-align:center; }
 
+  .notifications{ display:flex; flex-direction:column; gap:10px; margin: 18px 0; }
+  .notice{
+    display:flex; align-items:flex-start; gap: 10px;
+    border-radius: 10px; padding: 12px 14px; font-size: 13px;
+    border: 1px solid; line-height: 1.45;
+  }
+  .notice .notice-icon{ font-size: 16px; line-height: 1.2; flex-shrink:0; }
+  .notice .notice-title{ font-weight: 700; margin-bottom: 2px; }
+  .notice.notice-volatility{ background: #fffbeb; border-color: #fcd34d; color: #92400e; }
+  .notice.notice-shift{ background: #eff6ff; border-color: #93c5fd; color: #1e40af; }
+
   .tabs{ display:flex; gap: 6px; margin-bottom: 16px; }
   .tab-btn{
     border: 1.5px solid var(--border); background: var(--card); color: var(--muted);
@@ -346,6 +357,8 @@
       </div>
       <p class="chart-hint">Each point is the absolute difference between consecutive completions (in chronological order), per ticket size.</p>
 
+      <div class="notifications" id="mrNotifications"></div>
+
       <table class="pct-table" id="mrTable"></table>
       <p class="chart-hint">Upper Range Limit (URL) = 3.27 × average moving range. The lower limit for a moving-range chart is mathematically 0 (ranges can't be negative), so it's shown flat at the bottom. Needs at least 2 points per size.</p>
     </div>
@@ -436,7 +449,7 @@ const activePct = { p50: true, p85: true, p95: true };
 const dashPatterns = { p50: '2,3', p85: '7,4', p95: '11,3,2,3' };
 const pctLabel = { p50: '50th', p85: '85th', p95: '95th' };
 
-let lastRefresh = { sizePcts: {}, sizeXmR: {}, sizeMR: {}, key: null };
+let lastRefresh = { sizePcts: {}, sizeXmR: {}, sizeMR: {}, sizeSignals: {}, key: null };
 let isStale = false;
 
 const container = document.getElementById('chartContainer');
@@ -572,11 +585,47 @@ function computeSizeMR(points){
   return out;
 }
 
+// Signal detection on the moving-range series (Western Electric / Nelson style rules):
+// Rule 1: 3 of the last 5 consecutive points are beyond the two-thirds mark toward URL
+//         -> moderate, consistent volatility.
+// Rule 2: 8 consecutive points fall on the same side of the average (mR) line
+//         -> a small but consistent shift in the process.
+function detectMRSignals(m){
+  if (!m || m.series.length < 2) return { rule1: null, rule2: null };
+
+  const twoThirdsMark = m.mrBar + (2/3) * (m.url - m.mrBar);
+  let rule1Date = null;
+  if (m.url > m.mrBar) {
+    for (let i = 4; i < m.series.length; i++) {
+      const window = m.series.slice(i - 4, i + 1);
+      const count = window.filter(pt => pt.mr >= twoThirdsMark).length;
+      if (count >= 3) rule1Date = m.series[i].date;
+    }
+  }
+
+  let rule2Date = null;
+  let streakSide = null, streakLen = 0;
+  m.series.forEach(pt => {
+    const side = pt.mr > m.mrBar ? 'above' : (pt.mr < m.mrBar ? 'below' : null);
+    if (side && side === streakSide) { streakLen++; } else { streakSide = side; streakLen = side ? 1 : 0; }
+    if (streakLen >= 8) rule2Date = pt.date;
+  });
+
+  return { rule1: rule1Date, rule2: rule2Date };
+}
+
+function computeSizeSignals(sizeMR){
+  const out = {};
+  ['S','M','L'].forEach(size => { out[size] = detectMRSignals(sizeMR[size]); });
+  return out;
+}
+
 function refreshPrognosis(){
   const points = analysisPoints();
   lastRefresh.sizePcts = computeSizePcts(points);
   lastRefresh.sizeXmR = computeSizeXmR(points);
   lastRefresh.sizeMR = computeSizeMR(points);
+  lastRefresh.sizeSignals = computeSizeSignals(lastRefresh.sizeMR);
   lastRefresh.key = currentStateKey();
   isStale = false;
   staleBanner.classList.remove('show');
@@ -945,6 +994,37 @@ function updateStats(){
     </tr>`;
   });
   mrTable.innerHTML = mrHtml;
+
+  // Signal notifications
+  const notifEl = document.getElementById('mrNotifications');
+  let notifHtml = '';
+  activeSizeList.forEach(size => {
+    const sig = lastRefresh.sizeSignals[size];
+    if (!sig) return;
+    const label = { S: 'S — Small', M: 'M — Medium', L: 'L — Large' }[size];
+
+    if (sig.rule1) {
+      const dateStr = sig.rule1.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      notifHtml += `<div class="notice notice-volatility">
+        <span class="notice-icon">⚠️</span>
+        <div>
+          <div class="notice-title">${label} — moderate volatility signal</div>
+          3 of the last 5 moving ranges are beyond two-thirds of the way to the URL (as of ${dateStr}) — a moderate, consistent signal of increased variability.
+        </div>
+      </div>`;
+    }
+    if (sig.rule2) {
+      const dateStr = sig.rule2.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      notifHtml += `<div class="notice notice-shift">
+        <span class="notice-icon">🔷</span>
+        <div>
+          <div class="notice-title">${label} — sustained shift signal</div>
+          8 consecutive moving ranges fell on the same side of the average (through ${dateStr}) — a signal of a small but consistent change in the process.
+        </div>
+      </div>`;
+    }
+  });
+  notifEl.innerHTML = notifHtml;
 }
 
 function renderDataTable(){
