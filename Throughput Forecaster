@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Throughput Forecaster — Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Arial,Helvetica,sans-serif;background:#eef0f3;color:#1f2328;padding:1.5rem 1rem;line-height:1.5}
+.wrap{max-width:1180px;margin:0 auto;background:#fff;border-radius:10px;box-shadow:0 2px 4px rgba(0,0,0,.06),0 8px 24px rgba(0,0,0,.06);overflow:hidden}
+header{padding:1.5rem 2rem 1.25rem;border-bottom:1px solid #e4e7eb}
+h1{font-size:22px;font-weight:600}
+.sub{font-size:13px;color:#6b7280;margin-top:.25rem}
+nav{display:flex;flex-wrap:wrap;gap:2px;padding:0 1rem;background:#f7f8fa;border-bottom:1px solid #e4e7eb}
+nav button{padding:10px 14px;border:0;background:transparent;font-size:13px;color:#4b5563;cursor:pointer;border-bottom:2px solid transparent;font-family:inherit}
+nav button:hover{color:#111;background:#eceef1}
+nav button.on{color:#0b5cad;border-bottom-color:#0b5cad;font-weight:600;background:#fff}
+main{padding:1.75rem 2rem 2.25rem}
+.pane{display:none}.pane.on{display:block}
+h2{font-size:17px;font-weight:600;margin-bottom:.35rem}
+h3{font-size:14px;font-weight:600;margin:1.5rem 0 .6rem;padding-bottom:.35rem;border-bottom:1px solid #eceef1}
+h3:first-child{margin-top:0}
+p.note{font-size:12.5px;color:#6b7280;margin-bottom:1rem}
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.g4{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.card{background:#f8f9fb;border:1px solid #e4e7eb;border-radius:8px;padding:1rem}
+.kpi .lab{font-size:11px;letter-spacing:.4px;text-transform:uppercase;color:#6b7280;font-weight:600}
+.kpi .val{font-size:23px;font-weight:600;margin-top:.35rem}
+.kpi .val.good{color:#137333}.kpi .val.warn{color:#9a6700}.kpi .val.bad{color:#b3261e}
+label.f{display:block;font-size:12px;color:#4b5563;margin-bottom:4px;font-weight:600}
+input,select{font-family:inherit;font-size:13px;padding:7px 9px;border:1px solid #cbd0d6;border-radius:6px;background:#fff;color:#111;width:100%}
+input:focus,select:focus{outline:0;border-color:#0b5cad;box-shadow:0 0 0 3px rgba(11,92,173,.12)}
+input[type=number]{text-align:right}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.row>div{flex:1;min-width:130px}
+button.act{padding:9px 15px;border:1px solid #cbd0d6;border-radius:6px;background:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;color:#1f2328}
+button.act:hover{border-color:#0b5cad;color:#0b5cad;background:#f4f8fd}
+button.act.primary{background:#0b5cad;border-color:#0b5cad;color:#fff}
+button.act.primary:hover{background:#094a8c}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{padding:6px 9px;border:1px solid #e4e7eb;text-align:right}
+th{background:#f2f4f7;font-weight:600;text-align:right;color:#374151}
+th:first-child,td:first-child{text-align:left}
+td.txt,th.txt{text-align:left}
+tbody tr:nth-child(even){background:#fafbfc}
+tr.hl{background:#fff8e1 !important;font-weight:600}
+tr.hl2{background:#e7f3ff !important;font-weight:600}
+.scroll{max-height:430px;overflow:auto;border:1px solid #e4e7eb;border-radius:8px}
+.scroll table{border:0}.scroll th{position:sticky;top:0;z-index:2}
+.chartbox{background:#fff;border:1px solid #e4e7eb;border-radius:8px;padding:1rem;height:330px;position:relative}
+.tiny{font-size:11.5px;color:#6b7280;margin-top:.5rem}
+ul.info{margin:.25rem 0 0 1.1rem;font-size:13px;color:#374151}
+ul.info li{margin-bottom:.4rem}
+a{color:#0b5cad}
+.badge{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:#e7f3ff;color:#0b5cad;margin-left:6px}
+.warnbox{background:#fff4e5;border:1px solid #f5c77e;color:#7a4b00;padding:.7rem .9rem;border-radius:6px;font-size:12.5px;margin-bottom:1rem}
+.okbox{background:#e8f5e9;border:1px solid #a5d6a7;color:#1b5e20;padding:.7rem .9rem;border-radius:6px;font-size:12.5px;margin-bottom:1rem}
+.mono{font-family:Consolas,Monaco,monospace;font-size:11.5px;word-break:break-all;background:#f6f8fa;border:1px solid #e4e7eb;border-radius:6px;padding:.6rem;display:block}
+@media(max-width:720px){main{padding:1.25rem}header{padding:1.25rem}.chartbox{height:280px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Throughput Forecaster</h1>
+  <p class="sub">Monte Carlo forecast of duration, completion date and story counts — each workbook tab recreated below</p>
+</header>
+
+<nav id="nav"></nav>
+
+<main>
+
+<!-- ============ FORECAST ============ -->
+<section class="pane on" id="p-forecast">
+  <h2>Forecast duration and completion date</h2>
+  <p class="note">Enter your inputs; every result recalculates from 500 fresh Monte Carlo trials.</p>
+
+  <div class="grid g4" style="margin-bottom:1.5rem">
+    <div class="card kpi"><div class="lab">85% likelihood date</div><div class="val" id="k85">—</div></div>
+    <div class="card kpi"><div class="lab">95% likelihood date</div><div class="val" id="k95">—</div></div>
+    <div class="card kpi"><div class="lab">50% likelihood date</div><div class="val" id="k50">—</div></div>
+    <div class="card kpi"><div class="lab">Adjusted scope range</div><div class="val" id="kscope">—</div></div>
+  </div>
+
+  <div class="grid g2">
+    <div>
+      <h3>1. Start date <span class="badge">optional</span></h3>
+      <input type="date" id="i-start" value="2021-01-01">
+
+      <h3>2. How many stories remain?</h3>
+      <div class="row">
+        <div><label class="f">Low guess</label><input type="number" id="i-slow" value="20" min="0"></div>
+        <div><label class="f">High guess</label><input type="number" id="i-shigh" value="25" min="0"></div>
+      </div>
+      <div class="row">
+        <div><label class="f">Scope complexity</label><select id="i-complex"></select></div>
+      </div>
+      <div id="scope-msg"></div>
+      <table style="margin-top:.5rem"><tbody>
+        <tr><td class="txt">Adjusted scope (low × low multiplier)</td><td id="o-adjlow">—</td></tr>
+        <tr><td class="txt">Adjusted scope (high × high multiplier)</td><td id="o-adjhigh">—</td></tr>
+      </tbody></table>
+
+      <h3>3. Story split rate</h3>
+      <p class="note">Backlog counts are usually pre-split while completed throughput is post-split, which makes forecasts optimistic. This corrects for it.</p>
+      <div class="row">
+        <div><label class="f">Low split guess</label><input type="number" id="i-splitlow" value="1" step="0.05" min="0"></div>
+        <div><label class="f">Highest split guess</label><input type="number" id="i-splithigh" value="1.5" step="0.05" min="0"></div>
+      </div>
+    </div>
+
+    <div>
+      <h3>4. Throughput</h3>
+      <div class="row">
+        <div><label class="f">Throughput data is per</label><select id="i-unit"></select></div>
+        <div><label class="f">Use</label><select id="i-mode"><option>Estimate</option><option>Data</option></select></div>
+      </div>
+      <p class="note">With <strong>Data</strong> selected, the samples on the “Historical Samples” tab are resampled and the three estimates below are ignored.</p>
+      <div class="row">
+        <div><label class="f">Worst case</label><input type="number" id="i-tplow" value="1" min="0"></div>
+        <div><label class="f">Most often <span style="font-weight:400">(optional)</span></label><input type="number" id="i-tpmost" value="3" min="0"></div>
+        <div><label class="f">Best case</label><input type="number" id="i-tphigh" value="10" min="0"></div>
+      </div>
+      <div id="tp-msg"></div>
+      <div class="row">
+        <div><label class="f">Team focus on THIS work</label><select id="i-focus"></select></div>
+      </div>
+
+      <h3>5. How long? <span class="badge">story count forecast</span></h3>
+      <div class="row">
+        <div><label class="f">Periods to forecast</label><input type="number" id="i-horizon" value="6" min="1" max="52"></div>
+        <div><label class="f">Trials</label><input type="number" id="i-trials" value="500" min="100" max="5000" step="100"></div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="act primary" onclick="run()">Recalculate</button>
+        <button class="act" onclick="exportCSV()">Export results CSV</button>
+      </div>
+      <p class="tiny">Excel recalculates on every keystroke (F9). Here the model reruns whenever you change an input.</p>
+    </div>
+  </div>
+
+  <h3>Results — duration and completion date by likelihood</h3>
+  <div id="limit-msg"></div>
+  <div class="scroll" style="max-height:400px">
+    <table>
+      <thead><tr><th class="txt">Likelihood</th><th id="th-dur">Duration</th><th class="txt">Date</th></tr></thead>
+      <tbody id="t-results"></tbody>
+    </table>
+  </div>
+
+  <h3 id="h-storycount">Result: total pre-split stories in horizon</h3>
+  <p class="note">Pre-split means splitting is already accounted for.</p>
+  <table style="max-width:520px">
+    <thead><tr><th class="txt">Confidence</th><th>Stories delivered</th></tr></thead>
+    <tbody id="t-storycount"></tbody>
+  </table>
+</section>
+
+<!-- ============ HISTORICAL SAMPLES ============ -->
+<section class="pane" id="p-samples">
+  <h2>Historical samples</h2>
+  <p class="note">One completed-story count per period, oldest first. Used only when input 4 is set to “Data”. Blank rows are ignored.</p>
+
+  <div class="grid g2">
+    <div>
+      <h3>Enter samples</h3>
+      <div class="row">
+        <div><label class="f">Comma-separated throughput samples</label><input type="text" id="i-samples" value="1,3,5,3,7,8"></div>
+      </div>
+      <div class="scroll" style="max-height:300px">
+        <table>
+          <thead><tr><th class="txt">#</th><th>Sample</th><th>Group</th><th>Unique rank</th></tr></thead>
+          <tbody id="t-samples"></tbody>
+        </table>
+      </div>
+    </div>
+    <div>
+      <h3>Stability between two random groups</h3>
+      <p class="note">Samples are split into two groups by rank parity. If the two halves disagree wildly, you do not have enough data yet.</p>
+      <table>
+        <thead><tr><th class="txt">Group</th><th>All</th><th>1</th><th>2</th><th>Diff</th></tr></thead>
+        <tbody id="t-stability"></tbody>
+      </table>
+      <div id="stab-msg" style="margin-top:1rem"></div>
+
+      <h3>Transportable data formats</h3>
+      <label class="f">CSV</label><code class="mono" id="o-csv">—</code>
+      <label class="f" style="margin-top:.6rem">SIP 2.0</label><code class="mono" id="o-sip">—</code>
+      <label class="f" style="margin-top:.6rem">Distribution</label><code class="mono" id="o-dist">—</code>
+    </div>
+  </div>
+</section>
+
+<!-- ============ RISKS ============ -->
+<section class="pane" id="p-risks">
+  <h2>Risks</h2>
+  <p class="note">Each risk fires independently in every trial with its own likelihood, adding somewhere between its low and high story impact. Leave rows blank to ignore them.</p>
+  <div class="scroll">
+    <table>
+      <thead><tr>
+        <th class="txt">Likelihood (0–1)</th><th>Impact low</th><th>Impact high</th><th class="txt">Description</th>
+        <th>Combined impact</th><th id="th-riskimp">Est. impact</th><th>Rank</th><th></th>
+      </tr></thead>
+      <tbody id="t-risks"></tbody>
+    </table>
+  </div>
+  <div style="margin-top:.75rem;display:flex;gap:8px;flex-wrap:wrap">
+    <button class="act" onclick="addRisk()">Add risk row</button>
+    <button class="act" onclick="loadExampleRisks()">Load example risks</button>
+  </div>
+
+  <h3>Calculations</h3>
+  <table style="max-width:520px"><tbody id="t-riskcalc"></tbody></table>
+  <p class="tiny">Combined impact = likelihood × average impact. Rank 1 is the worst; fix the lowest-ranked last.</p>
+
+  <h3>Examples</h3>
+  <table style="max-width:640px">
+    <thead><tr><th class="txt">Likelihood</th><th>Impact low</th><th>Impact high</th><th class="txt">Description</th></tr></thead>
+    <tbody>
+      <tr><td class="txt">0.3</td><td>10</td><td>15</td><td class="txt">Server performance issues</td></tr>
+      <tr><td class="txt">0.15</td><td>5</td><td>10</td><td class="txt">Layout issues when text localized</td></tr>
+      <tr><td class="txt">0.2</td><td>5</td><td>15</td><td class="txt">Layout in Safari issues</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============ REMAINING STORIES ACTUALS ============ -->
+<section class="pane" id="p-actuals">
+  <h2>Remaining stories actuals</h2>
+  <p class="note">Record how many in-scope stories were still incomplete at the end of each period. These plot against the forecast burndown on the Charts tab.</p>
+  <div class="grid g2">
+    <div>
+      <div class="scroll" style="max-height:480px">
+        <table>
+          <thead><tr><th class="txt">Date (period ending)</th><th>Incomplete stories</th><th class="txt">Notes</th></tr></thead>
+          <tbody id="t-actuals"></tbody>
+        </table>
+      </div>
+      <p class="tiny">Dates are generated from the start date and period length on the Forecast tab.</p>
+    </div>
+    <div>
+      <h3>Actual vs forecast</h3>
+      <div class="chartbox"><canvas id="c-actuals"></canvas></div>
+      <p class="tiny">Shaded band is the 5th–95th percentile of simulated remaining scope; the line is the median.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CHARTS ============ -->
+<section class="pane" id="p-charts">
+  <h2>Charts</h2>
+  <p class="note">Completion date distribution, cumulative confidence and forecast burndown.</p>
+  <div class="grid g2">
+    <div><h3>How many trials finished in each period</h3><div class="chartbox"><canvas id="c-hist"></canvas></div></div>
+    <div><h3>Cumulative likelihood of completion</h3><div class="chartbox"><canvas id="c-cum"></canvas></div></div>
+  </div>
+  <h3>Forecast burndown</h3>
+  <div class="chartbox"><canvas id="c-burn"></canvas></div>
+
+  <h3>Story count results in table form</h3>
+  <p class="note">For the probabilities entered, how many stories can be delivered by each period?</p>
+  <div class="scroll">
+    <table><thead id="th-storygrid"></thead><tbody id="t-storygrid"></tbody></table>
+  </div>
+</section>
+
+<!-- ============ SETTINGS ============ -->
+<section class="pane" id="p-settings">
+  <h2>Settings</h2>
+  <p class="note">Lookup tables driving the drop-downs on the Forecast tab. Edit the multipliers to match how your team estimates.</p>
+  <div class="grid g2">
+    <div>
+      <h3>Duration</h3>
+      <table style="max-width:320px">
+        <thead><tr><th class="txt">Duration name</th><th>Days</th></tr></thead>
+        <tbody id="t-duration"></tbody>
+      </table>
+
+      <h3>Focus</h3>
+      <table style="max-width:380px">
+        <thead><tr><th class="txt">Focus</th><th>Adjustment</th></tr></thead>
+        <tbody id="t-focus"></tbody>
+      </table>
+    </div>
+    <div>
+      <h3>Complexity</h3>
+      <p class="note">Scope multipliers applied to your low and high story guesses.</p>
+      <table>
+        <thead><tr><th class="txt">Complexity</th><th>Low multiplier</th><th>High multiplier</th></tr></thead>
+        <tbody id="t-complex"></tbody>
+      </table>
+      <p class="tiny">Editing a multiplier immediately re-runs the forecast.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TRIANGLE ============ -->
+<section class="pane" id="p-triangle">
+  <h2>Triangle</h2>
+  <p class="note">Inverse triangular distribution. Each uniform random number is converted into a throughput draw shaped by worst / most likely / best. Used whenever a “most often” value is supplied.</p>
+  <div class="grid g4" style="margin-bottom:1.25rem">
+    <div class="card kpi"><div class="lab">a — worst</div><div class="val" id="tri-a">—</div></div>
+    <div class="card kpi"><div class="lab">c — most likely</div><div class="val" id="tri-c">—</div></div>
+    <div class="card kpi"><div class="lab">b — best</div><div class="val" id="tri-b">—</div></div>
+    <div class="card kpi"><div class="lab">Mean of draws</div><div class="val" id="tri-mean">—</div></div>
+  </div>
+  <div class="grid g2">
+    <div><h3>Shape of the generated draws</h3><div class="chartbox"><canvas id="c-tri"></canvas></div></div>
+    <div>
+      <h3>Sample of random numbers → throughput</h3>
+      <div class="scroll" style="max-height:330px">
+        <table>
+          <thead><tr><th class="txt">#</th><th>P(X) random</th><th>Throughput draw</th></tr></thead>
+          <tbody id="t-triangle"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  <p class="tiny">Formula for the triangular distribution by Dawn E. Wright, Ph.D.</p>
+</section>
+
+<!-- ============ MONTE CARLO ============ -->
+<section class="pane" id="p-mc">
+  <h2>Monte Carlo</h2>
+  <p class="note">One row per trial. Total stories is drawn from your scope range, inflated by the split rate and any risks that fired, then burned down period by period until it reaches zero.</p>
+  <div class="grid g4" style="margin-bottom:1.25rem">
+    <div class="card kpi"><div class="lab">Trials</div><div class="val" id="mc-trials">—</div></div>
+    <div class="card kpi"><div class="lab">Min periods to zero</div><div class="val" id="mc-min">—</div></div>
+    <div class="card kpi"><div class="lab">Max periods to zero</div><div class="val" id="mc-max">—</div></div>
+    <div class="card kpi"><div class="lab">Avg total stories</div><div class="val" id="mc-avg">—</div></div>
+  </div>
+  <div class="scroll">
+    <table><thead id="th-mc"></thead><tbody id="t-mc"></tbody></table>
+  </div>
+  <p class="tiny">Showing the first 100 trials and 16 periods. Use “Export results CSV” on the Forecast tab for the full set.</p>
+</section>
+
+<!-- ============ THROUGHPUT MC WEEKS ============ -->
+<section class="pane" id="p-tmc">
+  <h2>Throughput Monte Carlo — periods</h2>
+  <p class="note">A second simulation that ignores scope entirely and asks the opposite question: how many stories get done in a fixed number of periods?</p>
+  <div class="scroll">
+    <table><thead id="th-tmc"></thead><tbody id="t-tmc"></tbody></table>
+  </div>
+  <p class="tiny">Showing the first 100 trials. Sum columns are cumulative throughput at 4, 8, 12 … periods.</p>
+</section>
+
+<!-- ============ INSTRUCTIONS ============ -->
+<section class="pane" id="p-instructions">
+  <h2>Instructions</h2>
+  <p class="note">Single feature forecaster or throughput forecaster.</p>
+  <h3>How to use it</h3>
+  <ul class="info">
+    <li>Set a <strong>start date</strong> so results come back as dates rather than a count of periods.</li>
+    <li>Give a <strong>low and high story count</strong> — a range, not a single number. Pick the complexity that matches how well the work is understood; unclear scope inflates the range automatically.</li>
+    <li>Set the <strong>split rate</strong>. If a backlog item typically becomes 1 to 1.5 items once the team starts on it, enter 1 and 1.5.</li>
+    <li>Choose <strong>Data</strong> and fill the Historical Samples tab if you have past throughput, otherwise choose <strong>Estimate</strong> and give worst / most often / best.</li>
+    <li>Add anything that could blow up scope on the <strong>Risks</strong> tab.</li>
+    <li>Read the answer off the <strong>85% or 95% row</strong> of the results table. Do not quote the 50% row to stakeholders — it is a coin flip.</li>
+  </ul>
+  <h3>Reading the results</h3>
+  <ul class="info">
+    <li>A likelihood of 85% means 85% of simulated trials finished on or before that date.</li>
+    <li>The 100% row is the worst trial observed, not a guarantee.</li>
+    <li>Rerun after every period with updated remaining scope — the forecast is meant to be refreshed, not signed off once.</li>
+  </ul>
+  <h3>Credits</h3>
+  <ul class="info">
+    <li>Original spreadsheet by Troy Magennis, FocusedObjective.com.</li>
+    <li>Triangular distribution formula by Dawn E. Wright, Ph.D.</li>
+    <li>Background reading: <a href="https://medium.com/forecasting-using-data">Forecasting Using Data</a>.</li>
+  </ul>
+  <h3>Version history</h3>
+  <table style="max-width:640px">
+    <thead><tr><th class="txt">Version</th><th class="txt">Date</th><th class="txt">Change</th></tr></thead>
+    <tbody>
+      <tr><td class="txt">1</td><td class="txt">7 Apr 2015</td><td class="txt">Initial beta release for feedback.</td></tr>
+      <tr><td class="txt">2</td><td class="txt">7 May 2021</td><td class="txt">Added scope certainty, team focus and triangle throughput distribution.</td></tr>
+      <tr><td class="txt">3</td><td class="txt">HTML</td><td class="txt">Recreated as a self-contained browser dashboard.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============ MORE STUFF ============ -->
+<section class="pane" id="p-more">
+  <h2>More stuff like this</h2>
+  <h3>Contact</h3>
+  <ul class="info">
+    <li>Email: troy.magennis@focusedobjective.com</li>
+    <li>Twitter: @t_magennis</li>
+    <li>LinkedIn: <a href="https://www.linkedin.com/in/troymagennis">linkedin.com/in/troymagennis</a></li>
+    <li>Schedule a call: <a href="https://freebusy.io/data/data">freebusy.io/data/data</a></li>
+    <li>FocusedObjective.com — forecasting and metrics consulting and training</li>
+  </ul>
+  <h3>Online calculators</h3>
+  <ul class="info">
+    <li>Introduction to Monte Carlo simulation and forecasting</li>
+    <li>How much improvement do I get by adding more teams or people?</li>
+    <li>Story point velocity or throughput forecasting — does it matter?</li>
+    <li>Understanding optimal batch size</li>
+    <li>How does utilization impact lead time of work?</li>
+    <li>Impact of multiple team dependencies in software development</li>
+  </ul>
+  <h3>Forecasting and metric spreadsheets</h3>
+  <ul class="info">
+    <li>Multiple feature cut line forecaster — forecast several features at once</li>
+    <li>Team dashboard — build a team dashboard quickly</li>
+    <li>Skill and capability survey and matrix — find skill constraints</li>
+    <li>Time series forecasting for demand</li>
+  </ul>
+</section>
+
+</main>
+</div>
+
+<script>
+/* ---------- settings tables ---------- */
+const DURATIONS=[["1 week",7],["2 weeks",14],["3 weeks",21],["4 weeks",28]];
+const COMPLEXITY=[["Clear and understood",1,1],["Somewhat understood",1,1.5],["Not really understood yet",1.5,2],["Very unclear or understood",1.75,3]];
+const FOCUS=[["100% (only this work)",1],["75% (mostly this work)",.75],["50% (half this work)",.5],["25% (some of this work)",.25]];
+const PERIODS=52, MAXCOLS=52;
+
+let risks=[{l:"",lo:"",hi:"",d:""},{l:"",lo:"",hi:"",d:""},{l:"",lo:"",hi:"",d:""}];
+let actuals=[27,25,20,19];
+let sim=null, charts={};
+
+/* ---------- helpers ---------- */
+const $=id=>document.getElementById(id);
+const ri=(a,b)=>Math.floor(Math.random()*(b-a+1))+a;
+function pct(sorted,p){const n=sorted.length;if(!n)return NaN;const r=p*(n-1),lo=Math.floor(r),hi=Math.ceil(r);return lo===hi?sorted[lo]:sorted[lo]+(r-lo)*(sorted[hi]-sorted[lo]);}
+function fmtDate(d){return d?d.toLocaleDateString(undefined,{day:"2-digit",month:"short",year:"numeric"}):"—";}
+function addDays(d,n){const x=new Date(d);x.setDate(x.getDate()+n);return x;}
+const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:NaN;
+function median(a){const s=[...a].sort((x,y)=>x-y),m=s.length>>1;return s.length%2?s[m]:(s[m-1]+s[m])/2;}
+
+/* ---------- read inputs ---------- */
+function inputs(){
+  const comp=COMPLEXITY.find(c=>c[0]===$("i-complex").value)||COMPLEXITY[0];
+  const foc=FOCUS.find(f=>f[0]===$("i-focus").value)||FOCUS[0];
+  const dur=DURATIONS.find(d=>d[0]===$("i-unit").value)||DURATIONS[0];
+  const most=$("i-tpmost").value.trim();
+  return{
+    start:$("i-start").value?new Date($("i-start").value+"T00:00:00"):null,
+    unitName:dur[0], days:dur[1],
+    sLow:+$("i-slow").value, sHigh:+$("i-shigh").value,
+    cLow:comp[1], cHigh:comp[2],
+    spLow:+$("i-splitlow").value, spHigh:+$("i-splithigh").value,
+    mode:$("i-mode").value,
+    tLow:+$("i-tplow").value, tHigh:+$("i-tphigh").value,
+    tMost:most===""?null:+most,
+    focus:foc[1],
+    horizon:Math.max(1,Math.min(52,+$("i-horizon").value||6)),
+    trials:Math.max(100,Math.min(5000,+$("i-trials").value||500)),
+    samples:$("i-samples").value.split(",").map(s=>parseFloat(s.trim())).filter(v=>!isNaN(v))
+  };
+}
+
+/* ---------- throughput draw ---------- */
+function drawTP(p){
+  if(p.mode==="Data"){
+    if(!p.samples.length)return 0;
+    return p.samples[ri(0,p.samples.length-1)]*p.focus;
+  }
+  if(p.tMost===null||p.tMost===""||isNaN(p.tMost))return ri(p.tLow,p.tHigh)*p.focus;
+  if(p.tHigh===p.tLow)return p.tHigh*p.focus;
+  const u=Math.random(),split=(p.tMost-p.tLow)/(p.tHigh-p.tLow);
+  const v=u<=split
+    ? p.tLow+Math.sqrt(u*(p.tHigh-p.tLow)*(p.tMost-p.tLow))
+    : p.tHigh-Math.sqrt((1-u)*(p.tHigh-p.tLow)*(p.tHigh-p.tMost));
+  return Math.round(v)*p.focus;
+}
+
+/* ---------- simulation ---------- */
+function simulate(p){
+  const live=risks.filter(r=>r.l!==""&&!isNaN(+r.l)&&+r.l>0);
+  const adjLow=Math.round(p.cLow*p.sLow), adjHigh=Math.round(p.cHigh*p.sHigh);
+  const burn=[],weeks=[],totals=[],tpTrials=[],triDraws=[];
+
+  for(let t=0;t<p.trials;t++){
+    let total=Math.ceil(ri(adjLow,adjHigh)*(Math.random()*(p.spHigh-p.spLow)+p.spLow));
+    live.forEach(r=>{if(Math.random()<=+r.l)total+=ri(+r.lo||0,+r.hi||0);});
+    totals.push(total);
+    const row=[total];let rem=total,zero=null;
+    for(let w=1;w<=MAXCOLS;w++){
+      rem=Math.max(0,rem-drawTP(p));
+      row.push(rem);
+      if(rem===0&&zero===null)zero=w;
+    }
+    burn.push(row);
+    weeks.push(zero);
+    const tp=[];let run=0;
+    for(let w=0;w<MAXCOLS;w++){const d=drawTP(p);run+=d;tp.push(run);}
+    tpTrials.push(tp);
+  }
+  for(let i=0;i<400;i++)triDraws.push(drawTP(p)/p.focus);
+
+  const finished=weeks.filter(w=>w!==null);
+  return{p,burn,weeks,finished:finished.sort((a,b)=>a-b),totals,tpTrials,triDraws,
+    exceeded:weeks.filter(w=>w===null).length,adjLow,adjHigh,live};
+}
+
+/* ---------- render: forecast ---------- */
+function renderForecast(){
+  const p=sim.p,f=sim.finished;
+  $("o-adjlow").textContent=sim.adjLow;
+  $("o-adjhigh").textContent=sim.adjHigh;
+  $("kscope").textContent=sim.adjLow+"–"+sim.adjHigh;
+  $("scope-msg").innerHTML=p.sLow>p.sHigh?'<div class="warnbox">The low guess must be less than or equal to the high guess.</div>':"";
+  let tm="";
+  if(p.mode==="Estimate"&&p.tLow>p.tHigh)tm+='<div class="warnbox">The worst case must be less than or equal to the best case.</div>';
+  if(p.mode==="Estimate"&&p.tMost!==null&&(p.tLow>p.tMost||p.tHigh<p.tMost))tm+='<div class="warnbox">“Most often” must sit between worst and best case.</div>';
+  if(p.mode==="Data"&&!p.samples.length)tm+='<div class="warnbox">Mode is set to Data but no samples are entered on the Historical Samples tab.</div>';
+  $("tp-msg").innerHTML=tm;
+  $("limit-msg").innerHTML=sim.exceeded?'<div class="warnbox">Warning: '+(sim.exceeded/p.trials*100).toFixed(1)+'% of trials did not finish within '+MAXCOLS+' '+p.unitName+' periods — the limit of this model. Treat the high-likelihood rows as "at least".</div>':"";
+
+  $("th-dur").textContent="Duration ("+p.unitName+" periods)";
+  const levels=[1,.95,.9,.85,.8,.75,.7,.65,.6,.55,.5,.45,.4,.35,.3,.25,.2,.15,.1,.05,0];
+  $("t-results").innerHTML=levels.map(L=>{
+    const d=Math.round(pct(f,L));
+    const date=p.start?addDays(p.start,d*p.days):null;
+    const cls=L===.85?' class="hl"':L===.95?' class="hl2"':"";
+    return `<tr${cls}><td class="txt">${Math.round(L*100)}%</td><td>${isNaN(d)?"—":d}</td><td class="txt">${fmtDate(date)}</td></tr>`;
+  }).join("");
+
+  const d85=Math.round(pct(f,.85)),d95=Math.round(pct(f,.95)),d50=Math.round(pct(f,.5));
+  $("k85").textContent=p.start?fmtDate(addDays(p.start,d85*p.days)):d85+" periods";
+  $("k95").textContent=p.start?fmtDate(addDays(p.start,d95*p.days)):d95+" periods";
+  $("k50").textContent=p.start?fmtDate(addDays(p.start,d50*p.days)):d50+" periods";
+  $("k85").className="val warn";$("k95").className="val bad";$("k50").className="val good";
+
+  $("h-storycount").innerHTML=`Result: total pre-split stories in ${p.horizon} ${p.unitName} periods`;
+  const col=sim.tpTrials.map(t=>t[p.horizon-1]).sort((a,b)=>a-b);
+  $("t-storycount").innerHTML=[[.95,"hl2"],[.85,"hl"],[.5,""],[.05,""]].map(([c,cls])=>
+    `<tr${cls?' class="'+cls+'"':""}><td class="txt">${Math.round(c*100)}%</td><td>${Math.round(pct(col,1-c))}</td></tr>`).join("");
+}
+
+/* ---------- render: samples ---------- */
+function renderSamples(){
+  const s=sim.p.samples;
+  const ranks=s.map((v,i)=>{
+    let less=0,ties=0;
+    s.forEach((x,j)=>{if(x<v)less++;if(x===v&&j<=i)ties++;});
+    return less+ties;
+  });
+  const g1=[],g2=[];
+  s.forEach((v,i)=>{(ranks[i]%2?g1:g2).push(v);});
+  $("t-samples").innerHTML=s.length?s.map((v,i)=>
+    `<tr><td class="txt">${i+1}</td><td>${v}</td><td>${ranks[i]%2?1:2}</td><td>${ranks[i]}</td></tr>`).join("")
+    :'<tr><td colspan="4" class="txt">No samples entered.</td></tr>';
+
+  const mn=s.length?Math.min(...s):NaN,mx=s.length?Math.max(...s):NaN;
+  const n=x=>isNaN(x)?"—":(Math.round(x*100)/100);
+  $("t-stability").innerHTML=[
+    ["count",s.length,g1.length,g2.length,g1.length-g2.length],
+    ["min",mn,g1.length?Math.min(...g1):NaN,g2.length?Math.min(...g2):NaN,""],
+    ["max",mx,g1.length?Math.max(...g1):NaN,g2.length?Math.max(...g2):NaN,""],
+    ["avg",avg(s),avg(g1),avg(g2),avg(g1)-avg(g2)],
+    ["median",s.length?median(s):NaN,g1.length?median(g1):NaN,g2.length?median(g2):NaN,(g1.length&&g2.length)?median(g1)-median(g2):""]
+  ].map(r=>`<tr><td class="txt">${r[0]}</td><td>${n(r[1])}</td><td>${n(r[2])}</td><td>${n(r[3])}</td><td>${r[4]===""?"":n(r[4])}</td></tr>`).join("");
+
+  const err=Math.abs(avg(g1)-avg(g2)),ratio=err/(mx-mn);
+  $("stab-msg").innerHTML=isNaN(ratio)?'<div class="warnbox">Add samples to measure stability.</div>'
+    :ratio<.10?`<div class="okbox">Error / range = ${(ratio*100).toFixed(1)}% — great. Under 10% means your samples are stable.</div>`
+    :ratio<.25?`<div class="okbox">Error / range = ${(ratio*100).toFixed(1)}% — good. Aim to stay under 25%.</div>`
+    :`<div class="warnbox">Error / range = ${(ratio*100).toFixed(1)}% — above 25%. Add more sample data until this settles.</div>`;
+
+  const csv=s.join(",");
+  $("o-csv").textContent=csv||"—";
+  $("o-sip").textContent=s.length?`<sip name="dist" type="CSV" ver="1.0" count="${s.length}" average="${avg(s)}" median="${median(s)}">${csv}</sip>`:"—";
+  $("o-dist").textContent=s.length?`<distribution name="dist" shape="fromSamples">${csv}</distribution>`:"—";
+}
+
+/* ---------- render: risks ---------- */
+function renderRisks(){
+  const p=sim.p;
+  const combined=risks.map(r=>(r.l===""||r.lo===""||r.hi==="")?null:+r.l*((+r.lo+ +r.hi)/2));
+  const valid=combined.filter(v=>v!==null).sort((a,b)=>b-a);
+  const avgStories=avg([sim.adjLow,sim.adjHigh])*avg([p.spLow,p.spHigh]);
+  const dur85=pct(sim.finished,.85);
+  const perPeriod=avgStories/dur85;
+
+  $("th-riskimp").textContent="Est. impact in "+p.unitName+"s";
+  $("t-risks").innerHTML=risks.map((r,i)=>{
+    const c=combined[i];
+    const rank=c===null?"":valid.indexOf(c)+1;
+    return `<tr>
+      <td><input type="number" step="0.05" min="0" max="1" value="${r.l}" oninput="setRisk(${i},'l',this.value)"></td>
+      <td><input type="number" min="0" value="${r.lo}" oninput="setRisk(${i},'lo',this.value)"></td>
+      <td><input type="number" min="0" value="${r.hi}" oninput="setRisk(${i},'hi',this.value)"></td>
+      <td><input type="text" value="${r.d.replace(/"/g,"&quot;")}" oninput="setRisk(${i},'d',this.value)"></td>
+      <td>${c===null?"—":c.toFixed(2)}</td>
+      <td>${c===null?"—":(c/perPeriod).toFixed(2)}</td>
+      <td>${rank||"—"}</td>
+      <td><button class="act" style="padding:4px 8px" onclick="delRisk(${i})">✕</button></td>
+    </tr>`;}).join("");
+
+  $("t-riskcalc").innerHTML=`
+    <tr><td class="txt">Average story count</td><td>${avgStories.toFixed(2)}</td></tr>
+    <tr><td class="txt">Duration at 85th percentile</td><td>${Math.round(dur85)} ${p.unitName}s</td></tr>
+    <tr><td class="txt">Stories per period</td><td>${perPeriod.toFixed(2)}</td></tr>`;
+}
+function setRisk(i,k,v){risks[i][k]=v;run();}
+function addRisk(){if(risks.length<10){risks.push({l:"",lo:"",hi:"",d:""});run();}}
+function delRisk(i){risks.splice(i,1);if(!risks.length)risks.push({l:"",lo:"",hi:"",d:""});run();}
+function loadExampleRisks(){risks=[{l:.3,lo:10,hi:15,d:"Server performance issues"},{l:.15,lo:5,hi:10,d:"Layout issues when text localized"},{l:.2,lo:5,hi:15,d:"Layout in Safari issues"}];run();}
+
+/* ---------- render: actuals ---------- */
+function renderActuals(){
+  const p=sim.p;
+  $("t-actuals").innerHTML=Array.from({length:20},(_,i)=>{
+    const d=p.start?addDays(p.start,i*p.days):null;
+    const v=actuals[i]!==undefined?actuals[i]:"";
+    return `<tr><td class="txt">${fmtDate(d)}</td>
+      <td><input type="number" min="0" value="${v}" oninput="setActual(${i},this.value)"></td>
+      <td class="txt" style="color:#9aa0a6">${i===0?"start of work":""}</td></tr>`;
+  }).join("");
+}
+function setActual(i,v){if(v==="")delete actuals[i];else actuals[i]=+v;run();}
+
+/* ---------- render: tables of simulation ---------- */
+function renderMC(){
+  const p=sim.p;
+  $("mc-trials").textContent=p.trials;
+  $("mc-min").textContent=sim.finished.length?sim.finished[0]:"—";
+  $("mc-max").textContent=sim.finished.length?sim.finished[sim.finished.length-1]:"—";
+  $("mc-avg").textContent=Math.round(avg(sim.totals));
+
+  const cols=16;
+  $("th-mc").innerHTML="<tr><th class='txt'>Trial</th><th>Periods to zero</th><th class='txt'>End date</th><th>Total stories</th>"+
+    Array.from({length:cols},(_,i)=>`<th>P${i+1}</th>`).join("")+"</tr>";
+  $("t-mc").innerHTML=sim.burn.slice(0,100).map((row,i)=>{
+    const w=sim.weeks[i];
+    const d=(p.start&&w)?fmtDate(addDays(p.start,w*p.days)):"—";
+    return `<tr><td class="txt">${i+1}</td><td>${w??"—"}</td><td class="txt">${d}</td><td>${row[0]}</td>`+
+      Array.from({length:cols},(_,c)=>`<td>${Math.round(row[c+1])}</td>`).join("")+"</tr>";
+  }).join("");
+
+  const marks=[4,8,12,16,20,24,28,32,36,40,44,48,52];
+  $("th-tmc").innerHTML="<tr><th class='txt'>Trial</th><th>Sum at horizon</th>"+
+    marks.map(m=>`<th>Sum ${m}</th>`).join("")+"</tr>";
+  $("t-tmc").innerHTML=sim.tpTrials.slice(0,100).map((t,i)=>
+    `<tr><td class="txt">${i+1}</td><td>${Math.round(t[p.horizon-1])}</td>`+
+    marks.map(m=>`<td>${Math.round(t[m-1])}</td>`).join("")+"</tr>").join("");
+}
+
+function renderTriangle(){
+  const p=sim.p;
+  $("tri-a").textContent=p.mode==="Data"?"—":p.tLow;
+  $("tri-c").textContent=p.mode==="Data"?"—":(p.tMost??"not set");
+  $("tri-b").textContent=p.mode==="Data"?"—":p.tHigh;
+  $("tri-mean").textContent=avg(sim.triDraws).toFixed(2);
+  $("t-triangle").innerHTML=sim.triDraws.slice(0,60).map((v,i)=>
+    `<tr><td class="txt">${i+1}</td><td>${Math.random().toFixed(4)}</td><td>${Math.round(v)}</td></tr>`).join("");
+}
+
+/* ---------- settings tables ---------- */
+function renderSettings(){
+  $("t-duration").innerHTML=DURATIONS.map(d=>`<tr><td class="txt">${d[0]}</td><td>${d[1]}</td></tr>`).join("");
+  $("t-focus").innerHTML=FOCUS.map(f=>`<tr><td class="txt">${f[0]}</td><td>${f[1]}</td></tr>`).join("");
+  $("t-complex").innerHTML=COMPLEXITY.map((c,i)=>
+    `<tr><td class="txt">${c[0]}</td>
+     <td><input type="number" step="0.05" min="0" value="${c[1]}" oninput="setMult(${i},1,this.value)"></td>
+     <td><input type="number" step="0.05" min="0" value="${c[2]}" oninput="setMult(${i},2,this.value)"></td></tr>`).join("");
+}
+function setMult(i,k,v){COMPLEXITY[i][k]=+v||0;run();}
+
+/* ---------- charts ---------- */
+function mkChart(id,cfg){if(charts[id])charts[id].destroy();charts[id]=new Chart($(id).getContext("2d"),cfg);}
+const GRID={color:"#eceef1"},TICK={color:"#6b7280",font:{size:11}};
+
+function renderCharts(){
+  const p=sim.p,f=sim.finished;
+  const mn=f[0],mx=f[f.length-1];
+  const labels=[],freq=[],cum=[];
+  for(let w=mn;w<=mx;w++){
+    labels.push(p.start?fmtDate(addDays(p.start,w*p.days)):"P"+w);
+    const c=f.filter(x=>x===w).length;
+    freq.push(c);
+    cum.push(+(f.filter(x=>x<=w).length/f.length*100).toFixed(1));
+  }
+  mkChart("c-hist",{type:"bar",data:{labels,datasets:[{data:freq,backgroundColor:"#0b5cad",borderRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y+" trials"}}},
+      scales:{y:{beginAtZero:true,ticks:TICK,grid:GRID,title:{display:true,text:"Trials",color:"#6b7280"}},x:{ticks:TICK,grid:{display:false}}}}});
+
+  mkChart("c-cum",{type:"line",data:{labels,datasets:[{data:cum,borderColor:"#137333",backgroundColor:"rgba(19,115,51,.10)",fill:true,tension:.25,pointRadius:2}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.y+"% chance of finishing by then"}}},
+      scales:{y:{beginAtZero:true,max:100,ticks:{...TICK,callback:v=>v+"%"},grid:GRID},x:{ticks:TICK,grid:{display:false}}}}});
+
+  const hz=Math.min(MAXCOLS,Math.max(p.horizon,Math.ceil(mx)+2));
+  const bl=[],b50=[],b05=[],b95=[];
+  for(let c=0;c<=hz;c++){
+    bl.push(p.start?fmtDate(addDays(p.start,c*p.days)):"P"+c);
+    const col=sim.burn.map(r=>r[c]).sort((a,b)=>a-b);
+    b50.push(Math.round(pct(col,.5)));b05.push(Math.round(pct(col,.05)));b95.push(Math.round(pct(col,.95)));
+  }
+  mkChart("c-burn",{type:"line",data:{labels:bl,datasets:[
+    {label:"95th percentile",data:b95,borderColor:"#b3261e",backgroundColor:"rgba(179,38,30,.07)",fill:"+2",tension:.2,pointRadius:0,borderWidth:1.5},
+    {label:"Median",data:b50,borderColor:"#0b5cad",tension:.2,pointRadius:0,borderWidth:2},
+    {label:"5th percentile",data:b05,borderColor:"#137333",tension:.2,pointRadius:0,borderWidth:1.5}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12,font:{size:11}}}},
+      scales:{y:{beginAtZero:true,ticks:TICK,grid:GRID,title:{display:true,text:"Stories remaining",color:"#6b7280"}},x:{ticks:TICK,grid:{display:false}}}}});
+
+  const act=[];for(let i=0;i<=hz;i++)act.push(actuals[i]!==undefined?actuals[i]:null);
+  mkChart("c-actuals",{type:"line",data:{labels:bl,datasets:[
+    {label:"95th percentile",data:b95,borderColor:"#d9c2c0",backgroundColor:"rgba(11,92,173,.06)",fill:"+2",tension:.2,pointRadius:0,borderWidth:1},
+    {label:"Median forecast",data:b50,borderColor:"#9aa0a6",borderDash:[5,4],tension:.2,pointRadius:0,borderWidth:1.5},
+    {label:"5th percentile",data:b05,borderColor:"#c2d9c6",tension:.2,pointRadius:0,borderWidth:1},
+    {label:"Actual remaining",data:act,borderColor:"#b3261e",backgroundColor:"#b3261e",tension:.15,pointRadius:4,borderWidth:2.5,spanGaps:false}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12,font:{size:11}}}},
+      scales:{y:{beginAtZero:true,ticks:TICK,grid:GRID},x:{ticks:TICK,grid:{display:false}}}}});
+
+  const bins={};sim.triDraws.forEach(v=>{const k=Math.round(v);bins[k]=(bins[k]||0)+1;});
+  const bk=Object.keys(bins).map(Number).sort((a,b)=>a-b);
+  mkChart("c-tri",{type:"bar",data:{labels:bk,datasets:[{data:bk.map(k=>bins[k]),backgroundColor:"#7a4bd8",borderRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{y:{beginAtZero:true,ticks:TICK,grid:GRID,title:{display:true,text:"Draws",color:"#6b7280"}},
+        x:{ticks:TICK,grid:{display:false},title:{display:true,text:"Stories per period",color:"#6b7280"}}}}});
+
+  const marks=[4,8,12,16,20,24,28,32,36,40,44,48,52];
+  $("th-storygrid").innerHTML="<tr><th class='txt'>Confidence</th>"+marks.map(m=>`<th>${m} ${p.unitName}s</th>`).join("")+"</tr>";
+  $("t-storygrid").innerHTML=[.95,.85,.5,.05].map(c=>{
+    const cls=c===.85?' class="hl"':c===.95?' class="hl2"':"";
+    return `<tr${cls}><td class="txt">${Math.round(c*100)}%</td>`+marks.map(m=>{
+      const col=sim.tpTrials.map(t=>t[m-1]).sort((a,b)=>a-b);
+      return `<td>${Math.round(pct(col,1-c))}</td>`;}).join("")+"</tr>";
+  }).join("");
+}
+
+/* ---------- export ---------- */
+function exportCSV(){
+  const p=sim.p;
+  let out="Trial,PeriodsToZero,EndDate,TotalStories,"+Array.from({length:MAXCOLS},(_,i)=>"P"+(i+1)).join(",")+"\n";
+  sim.burn.forEach((row,i)=>{
+    const w=sim.weeks[i];
+    const d=(p.start&&w)?addDays(p.start,w*p.days).toISOString().slice(0,10):"";
+    out+=[i+1,w??"",d,row[0],...row.slice(1).map(v=>Math.round(v))].join(",")+"\n";
+  });
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([out],{type:"text/csv"}));
+  a.download="throughput_forecast_trials.csv";a.click();URL.revokeObjectURL(a.href);
+}
+
+/* ---------- tabs ---------- */
+const TABS=[["forecast","Forecast"],["samples","Historical Samples"],["risks","Risks"],["actuals","Remaining Stories Actuals"],
+  ["charts","Charts"],["settings","Settings"],["triangle","Triangle"],["mc","Monte Carlo"],
+  ["tmc","Throughput MC Periods"],["instructions","Instructions"],["more","More stuff like this"]];
+$("nav").innerHTML=TABS.map(([id,label],i)=>`<button class="${i?"":"on"}" data-t="${id}">${label}</button>`).join("");
+$("nav").addEventListener("click",e=>{
+  const b=e.target.closest("button[data-t]");if(!b)return;
+  document.querySelectorAll("#nav button").forEach(x=>x.classList.remove("on"));
+  document.querySelectorAll(".pane").forEach(x=>x.classList.remove("on"));
+  b.classList.add("on");$("p-"+b.dataset.t).classList.add("on");
+});
+
+/* ---------- boot ---------- */
+function fillSelects(){
+  $("i-complex").innerHTML=COMPLEXITY.map(c=>`<option>${c[0]}</option>`).join("");
+  $("i-unit").innerHTML=DURATIONS.map(d=>`<option>${d[0]}</option>`).join("");
+  $("i-focus").innerHTML=FOCUS.map(f=>`<option>${f[0]}</option>`).join("");
+}
+function run(){
+  sim=simulate(inputs());
+  renderForecast();renderSamples();renderRisks();renderActuals();
+  renderMC();renderTriangle();renderCharts();
+}
+fillSelects();renderSettings();
+["i-start","i-slow","i-shigh","i-complex","i-splitlow","i-splithigh","i-unit","i-mode",
+ "i-tplow","i-tpmost","i-tphigh","i-focus","i-horizon","i-trials","i-samples"]
+  .forEach(id=>$(id).addEventListener("change",run));
+["i-slow","i-shigh","i-splitlow","i-splithigh","i-tplow","i-tpmost","i-tphigh","i-horizon","i-samples"]
+  .forEach(id=>$(id).addEventListener("input",run));
+run();
+</script>
+</body>
+</html>
