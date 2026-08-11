@@ -151,7 +151,7 @@
   .pt{ cursor: pointer; }
   .pt:hover{ stroke: #111827; stroke-width: 2; }
   .pt.excluded{ fill-opacity: 0.15 !important; stroke-dasharray: 2,2; }
-  .mrpt{ cursor: default; }
+  .mrpt{ cursor: pointer; }
   .mrpt:hover{ stroke: #111827; stroke-width: 2; }
 
   .tooltip{
@@ -319,6 +319,7 @@
       <button class="tab-btn active" data-chart-tab="scatter">Scatter Chart</button>
       <button class="tab-btn" data-chart-tab="behaviour">Behaviour Chart</button>
       <button class="tab-btn" data-chart-tab="mr">Moving Range Chart</button>
+      <button class="tab-btn" data-chart-tab="data">Manage Data</button>
     </div>
 
     <div class="tab-panel active" id="chart-tab-scatter">
@@ -355,17 +356,17 @@
       <div class="chart-container" id="mrChartContainer">
         <div class="tooltip" id="mrTooltip"></div>
       </div>
-      <p class="chart-hint">Each point is the absolute difference between consecutive completions (in chronological order), per ticket size.</p>
+      <p class="chart-hint">Each point is the absolute difference between consecutive completions (in chronological order), per ticket size. Click a point to exclude the later of the two completions it's based on (or restore it) — the same underlying dataset used by the other tabs.</p>
 
       <div class="notifications" id="mrNotifications"></div>
 
       <table class="pct-table" id="mrTable"></table>
       <p class="chart-hint">Upper Range Limit (URL) = 3.27 × average moving range. The lower limit for a moving-range chart is mathematically 0 (ranges can't be negative), so it's shown flat at the bottom. Needs at least 2 points per size.</p>
     </div>
-  </div>
 
-  <div class="card">
+    <div class="tab-panel" id="chart-tab-data">
     <h2>Manage data</h2>
+    <p class="chart-hint" style="margin-top:-8px; margin-bottom:16px;">Excluding, restoring, or adding points here — or clicking a point directly on any of the three chart tabs — updates the underlying dataset. Either way, hit <strong>Refresh Prognosis</strong> to recalculate the percentiles, natural process limits, and moving-range stats.</p>
 
     <div class="tabs">
       <button class="tab-btn active" data-tab="manual">Add manually</button>
@@ -431,6 +432,7 @@
       <button class="btn btn-primary" id="refreshBtnBottom">Refresh Prognosis</button>
     </div>
   </div>
+</div>
 </div>
 
 <script>
@@ -563,7 +565,12 @@ function computeMRSeries(points){
 
   const series = [];
   for (let i = 1; i < sorted.length; i++) {
-    series.push({ date: sorted[i].date, mr: Math.abs(sorted[i].lead - sorted[i-1].lead) });
+    series.push({
+      date: sorted[i].date,
+      mr: Math.abs(sorted[i].lead - sorted[i-1].lead),
+      id: sorted[i].id,        // id of the later point in the pair — clicking excludes this one
+      prevId: sorted[i-1].id
+    });
   }
   const mrBar = series.reduce((a,b) => a + b.mr, 0) / series.length;
   const url = mrBar * MR_URL_CONSTANT;
@@ -898,7 +905,7 @@ function renderMovingRangeChart(){
         const x = xScale(pt.date.getTime(), minTs, maxTs);
         const y = yScale(pt.mr, yMax);
         const dataIdx = tooltipData.length;
-        tooltipData.push({ size, date: pt.date, mr: pt.mr });
+        tooltipData.push({ size, date: pt.date, mr: pt.mr, id: pt.id });
         svg += `<circle class="mrpt" data-idx="${dataIdx}" cx="${x}" cy="${y}" r="4.5" fill="${color}" fill-opacity="0.85" stroke="${color}"/>`;
       });
     }
@@ -913,14 +920,28 @@ function renderMovingRangeChart(){
     circle.addEventListener('mousemove', (e) => {
       const idx = +circle.getAttribute('data-idx');
       const d = tooltipData[idx];
+      const r = dataset.find(row => row.id === d.id);
       const dateStr = d.date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-      mrTooltip.textContent = `${dateStr} · Size ${d.size} · moving range ${d.mr}d`;
+      const excludedTag = r && r.excluded ? ' · excluded' : '';
+      const action = r && r.excluded ? 'restore' : 'exclude';
+      mrTooltip.textContent = `${dateStr} · Size ${d.size} · moving range ${d.mr}d${excludedTag} — click to ${action} this data point`;
       const rect = mrContainer.getBoundingClientRect();
       mrTooltip.style.left = (e.clientX - rect.left) + 'px';
       mrTooltip.style.top = (e.clientY - rect.top) + 'px';
       mrTooltip.classList.add('show');
     });
     circle.addEventListener('mouseleave', () => mrTooltip.classList.remove('show'));
+    circle.addEventListener('click', () => {
+      const idx = +circle.getAttribute('data-idx');
+      const d = tooltipData[idx];
+      const r = dataset.find(row => row.id === d.id);
+      if (!r) return;
+      r.excluded = !r.excluded;
+      markStale();
+      renderAll();
+      renderDataTable();
+      updateStats();
+    });
   });
 }
 
