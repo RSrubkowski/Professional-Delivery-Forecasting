@@ -1,516 +1,730 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Monte Carlo Backlog Forecast Dashboard</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background: linear-gradient(135deg, #f5f5f5 0%, #e8e8e8 100%);
-            padding: 2rem 1rem;
-            min-height: 100vh;
-            color: #1a1a1a;
-        }
-
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07), 0 10px 20px rgba(0, 0, 0, 0.05);
-            padding: 2.5rem;
-        }
-
-        header {
-            margin-bottom: 2rem;
-            border-bottom: 2px solid #f0f0f0;
-            padding-bottom: 1.5rem;
-        }
-
-        h1 {
-            font-size: 28px;
-            color: #1a1a1a;
-            margin-bottom: 0.5rem;
-            font-weight: 600;
-        }
-
-        .subtitle {
-            font-size: 14px;
-            color: #888;
-        }
-
-        .metrics-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 12px;
-            margin-bottom: 2rem;
-        }
-
-        .metric-card {
-            background: #f9f9f9;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 1rem;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-        }
-
-        .metric-label {
-            font-size: 12px;
-            color: #999;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 0.5rem;
-            font-weight: 500;
-        }
-
-        .metric-value {
-            font-size: 24px;
-            font-weight: 600;
-            color: #1a1a1a;
-        }
-
-        .metric-value.danger {
-            color: #d73a49;
-        }
-
-        .metric-value.success {
-            color: #28a745;
-        }
-
-        .section {
-            margin-bottom: 2.5rem;
-        }
-
-        .section-title {
-            font-size: 16px;
-            font-weight: 600;
-            color: #1a1a1a;
-            margin-bottom: 1rem;
-            padding-bottom: 0.5rem;
-            border-bottom: 1px solid #f0f0f0;
-        }
-
-        .percentile-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .percentile-item {
-            background: #f9f9f9;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 1rem;
-        }
-
-        .percentile-header {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-bottom: 0.75rem;
-        }
-
-        .percentile-label {
-            font-size: 13px;
-            color: #666;
-            font-weight: 500;
-        }
-
-        .percentile-value {
-            font-size: 14px;
-            font-weight: 600;
-            color: #1a1a1a;
-        }
-
-        input[type="range"] {
-            width: 100%;
-            height: 4px;
-            border-radius: 3px;
-            background: #e0e0e0;
-            outline: none;
-            -webkit-appearance: none;
-            appearance: none;
-            cursor: not-allowed;
-        }
-
-        input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 18px;
-            height: 18px;
-            border-radius: 50%;
-            background: #0066cc;
-            cursor: pointer;
-        }
-
-        input[type="range"]::-moz-range-thumb {
-            width: 18px;
-            height: 18px;
-            border-radius: 50%;
-            background: #0066cc;
-            cursor: pointer;
-            border: none;
-        }
-
-        .button-group {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 8px;
-            margin-bottom: 1rem;
-        }
-
-        button {
-            padding: 10px 16px;
-            border: 1px solid #d0d0d0;
-            border-radius: 6px;
-            background: white;
-            cursor: pointer;
-            font-size: 13px;
-            font-weight: 500;
-            color: #1a1a1a;
-            transition: all 0.2s ease;
-        }
-
-        button:hover {
-            background: #f5f5f5;
-            border-color: #0066cc;
-            color: #0066cc;
-        }
-
-        button:active {
-            transform: scale(0.98);
-        }
-
-        .chart-container {
-            background: white;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 1rem;
-            position: relative;
-            height: 350px;
-            margin-bottom: 1rem;
-        }
-
-        .assumptions {
-            background: #f9f9f9;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 1rem;
-            font-size: 13px;
-            color: #555;
-            line-height: 1.6;
-        }
-
-        .assumptions h3 {
-            font-size: 14px;
-            color: #1a1a1a;
-            font-weight: 600;
-            margin-bottom: 0.75rem;
-        }
-
-        .assumptions ul {
-            margin-left: 20px;
-        }
-
-        .assumptions li {
-            margin-bottom: 0.5rem;
-        }
-
-        .loading {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 350px;
-            font-size: 14px;
-            color: #999;
-        }
-
-        @media (max-width: 768px) {
-            .container {
-                padding: 1.5rem;
-            }
-
-            h1 {
-                font-size: 22px;
-            }
-
-            .metrics-grid {
-                grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            }
-
-            .percentile-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .metric-value {
-                font-size: 20px;
-            }
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Delivery Forecaster — Monte Carlo</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:Arial,Helvetica,sans-serif;background:#eef0f3;color:#1f2328;padding:1.5rem 1rem;line-height:1.5}
+.wrap{max-width:1200px;margin:0 auto;background:#fff;border-radius:10px;box-shadow:0 2px 4px rgba(0,0,0,.06),0 8px 24px rgba(0,0,0,.06);overflow:hidden}
+header{padding:1.5rem 2rem 1.25rem;border-bottom:1px solid #e4e7eb}
+h1{font-size:22px;font-weight:600}
+.sub{font-size:13px;color:#6b7280;margin-top:.25rem}
+nav{display:flex;flex-wrap:wrap;gap:2px;padding:0 1rem;background:#f7f8fa;border-bottom:1px solid #e4e7eb}
+nav button{padding:10px 15px;border:0;background:transparent;font-size:13px;color:#4b5563;cursor:pointer;border-bottom:2px solid transparent;font-family:inherit}
+nav button:hover{color:#111;background:#eceef1}
+nav button.on{color:#0b5cad;border-bottom-color:#0b5cad;font-weight:600;background:#fff}
+main{padding:1.75rem 2rem 2.25rem}
+.pane{display:none}.pane.on{display:block}
+h2{font-size:17px;font-weight:600;margin-bottom:.35rem}
+h3{font-size:14px;font-weight:600;margin:1.6rem 0 .6rem;padding-bottom:.35rem;border-bottom:1px solid #eceef1}
+h3:first-child{margin-top:0}
+p.note{font-size:12.5px;color:#6b7280;margin-bottom:1rem}
+.grid{display:grid;gap:14px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(310px,1fr))}
+.g4{grid-template-columns:repeat(auto-fit,minmax(165px,1fr))}
+.card{background:#f8f9fb;border:1px solid #e4e7eb;border-radius:8px;padding:1rem}
+.kpi .lab{font-size:11px;letter-spacing:.4px;text-transform:uppercase;color:#6b7280;font-weight:600}
+.kpi .val{font-size:22px;font-weight:600;margin-top:.35rem}
+.kpi .val.good{color:#137333}.kpi .val.warn{color:#9a6700}.kpi .val.bad{color:#b3261e}
+.kpi .hint{font-size:11px;color:#9aa0a6;margin-top:.2rem}
+label.f{display:block;font-size:12px;color:#4b5563;margin-bottom:4px;font-weight:600}
+input,select{font-family:inherit;font-size:13px;padding:7px 9px;border:1px solid #cbd0d6;border-radius:6px;background:#fff;color:#111;width:100%}
+input:focus,select:focus{outline:0;border-color:#0b5cad;box-shadow:0 0 0 3px rgba(11,92,173,.12)}
+input[type=number]{text-align:right}
+input[type=checkbox]{width:auto}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.row>div{flex:1;min-width:135px}
+button.act{padding:9px 15px;border:1px solid #cbd0d6;border-radius:6px;background:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;color:#1f2328}
+button.act:hover{border-color:#0b5cad;color:#0b5cad;background:#f4f8fd}
+button.act.primary{background:#0b5cad;border-color:#0b5cad;color:#fff}
+button.act.primary:hover{background:#094a8c}
+button.mini{padding:3px 8px;font-size:12px;border:1px solid #cbd0d6;border-radius:5px;background:#fff;cursor:pointer;font-family:inherit}
+button.mini:hover{border-color:#0b5cad;color:#0b5cad}
+table{width:100%;border-collapse:collapse;font-size:12.5px}
+th,td{padding:6px 9px;border:1px solid #e4e7eb;text-align:right}
+th{background:#f2f4f7;font-weight:600;color:#374151}
+th.txt,td.txt{text-align:left}
+tbody tr:nth-child(even){background:#fafbfc}
+tr.hl{background:#fff8e1 !important;font-weight:600}
+tr.hl2{background:#e7f3ff !important;font-weight:600}
+td.ok{color:#137333;font-weight:600}td.mid{color:#9a6700;font-weight:600}td.no{color:#b3261e;font-weight:600}
+.scroll{max-height:440px;overflow:auto;border:1px solid #e4e7eb;border-radius:8px}
+.scroll table{border:0}.scroll th{position:sticky;top:0;z-index:2}
+.chartbox{background:#fff;border:1px solid #e4e7eb;border-radius:8px;padding:1rem;height:330px;position:relative}
+.tiny{font-size:11.5px;color:#6b7280;margin-top:.5rem}
+.warnbox{background:#fff4e5;border:1px solid #f5c77e;color:#7a4b00;padding:.7rem .9rem;border-radius:6px;font-size:12.5px;margin-bottom:1rem}
+.okbox{background:#e8f5e9;border:1px solid #a5d6a7;color:#1b5e20;padding:.7rem .9rem;border-radius:6px;font-size:12.5px;margin-bottom:1rem}
+.infobox{background:#f0f6fc;border:1px solid #b6d4f0;color:#0b3d67;padding:.7rem .9rem;border-radius:6px;font-size:12.5px;margin-bottom:1rem}
+ul.info{margin:.25rem 0 0 1.1rem;font-size:13px;color:#374151}
+ul.info li{margin-bottom:.4rem}
+.mchips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.mchips label{display:flex;align-items:center;gap:4px;font-size:12px;background:#fff;border:1px solid #cbd0d6;border-radius:14px;padding:3px 10px;cursor:pointer}
+@media(max-width:720px){main{padding:1.25rem}header{padding:1.25rem}.chartbox{height:280px}}
+</style>
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>📊 Monte Carlo Backlog Forecast</h1>
-            <p class="subtitle">Realistic delivery date estimation based on historical sprint velocity</p>
-        </header>
+<div class="wrap">
+<header>
+  <h1>Delivery Forecaster</h1>
+  <p class="sub">Monte Carlo forecasting for a backlog and for an ordered set of epics — every input adjustable</p>
+</header>
+<nav id="nav"></nav>
+<main>
 
-        <div class="metrics-grid">
-            <div class="metric-card">
-                <div class="metric-label">Current Backlog</div>
-                <div class="metric-value" id="backlog-display">62</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Items by EOY 2026</div>
-                <div class="metric-value success" id="eoy-items">—</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Avg. Completion (50th %ile)</div>
-                <div class="metric-value" id="avg-completion">—</div>
-            </div>
-            <div class="metric-card">
-                <div class="metric-label">Target Date</div>
-                <div class="metric-value danger">Feb 2027</div>
-            </div>
-        </div>
+<!-- ================= GLOBAL PARAMETERS ================= -->
+<section class="pane on" id="p-params">
+  <h2>Global parameters</h2>
+  <p class="note">These drive both forecasts. Every field is editable and the model reruns as you type.</p>
 
-        <div class="section">
-            <h2 class="section-title">Completion Date Percentiles</h2>
-            <div class="percentile-grid">
-                <div class="percentile-item">
-                    <div class="percentile-header">
-                        <span class="percentile-label">85th Percentile (Reasonable Confidence)</span>
-                        <span class="percentile-value" id="p85-value">—</span>
-                    </div>
-                    <input type="range" id="p85" min="0" max="100" value="85" disabled />
-                </div>
-                <div class="percentile-item">
-                    <div class="percentile-header">
-                        <span class="percentile-label">95th Percentile (High Confidence)</span>
-                        <span class="percentile-value" id="p95-value">—</span>
-                    </div>
-                    <input type="range" id="p95" min="0" max="100" value="95" disabled />
-                </div>
-            </div>
-        </div>
-
-        <div class="section">
-            <h2 class="section-title">Scenario Analysis</h2>
-            <p style="font-size: 13px; color: #666; margin-bottom: 1rem;">Test different backlog sizes to see impact on delivery dates</p>
-            <div class="button-group">
-                <button onclick="updateBacklog(62 * 1.20);">Backlog +20%</button>
-                <button onclick="updateBacklog(62 * 1.25);">Backlog +25%</button>
-                <button onclick="updateBacklog(62 * 1.30);">Backlog +30%</button>
-                <button onclick="updateBacklog(62);">Reset to 62</button>
-            </div>
-        </div>
-
-        <div class="section">
-            <h2 class="section-title">Distribution of Completion Dates</h2>
-            <div class="chart-container">
-                <div class="loading">Loading chart...</div>
-                <canvas id="histogramChart" style="display: none;"></canvas>
-            </div>
-        </div>
-
-        <div class="section">
-            <h2 class="section-title">Assumptions & Parameters</h2>
-            <div class="assumptions">
-                <h3>Simulation Settings</h3>
-                <ul>
-                    <li><strong>Sprint Cycle:</strong> 2-week sprints starting September 2026</li>
-                    <li><strong>September Constraint:</strong> 25% capacity reduction in first sprint</li>
-                    <li><strong>December Constraint:</strong> Minimum historical velocity (2 items) applied</li>
-                    <li><strong>Historical Data:</strong> 11 sprints with velocities: 5, 4, 4, 5, 6, 4, 2, 3, 2, 5, 6</li>
-                    <li><strong>Average Velocity:</strong> 4.27 items per sprint</li>
-                    <li><strong>Monte Carlo Iterations:</strong> 10,000 simulations for statistical validity</li>
-                    <li><strong>Target Date:</strong> February 2027</li>
-                </ul>
-            </div>
-        </div>
+  <div class="grid g2">
+    <div>
+      <h3>Timeline</h3>
+      <div class="row">
+        <div><label class="f">Start date</label><input type="date" id="i-start" value="2026-09-01"></div>
+        <div><label class="f">Sprint length (days)</label><input type="number" id="i-sprintlen" value="14" min="1" max="60"></div>
+      </div>
+      <div class="row">
+        <div><label class="f">Deadline / checkpoint</label><input type="date" id="i-deadline" value="2026-12-31"></div>
+        <div><label class="f">Number of simulations</label><input type="number" id="i-trials" value="5000" min="100" max="50000" step="500"></div>
+      </div>
+      <div id="o-sprintinfo" class="infobox"></div>
     </div>
 
-    <script>
-        const velocities = [5, 4, 4, 5, 6, 4, 2, 3, 2, 5, 6];
-        let chart = null;
+    <div>
+      <h3>Seasonal capacity reduction</h3>
+      <p class="note">A blanket throughput haircut applied to the months you tick. Stacks multiplicatively with the availability calendar.</p>
+      <div class="row">
+        <div style="flex:0 0 auto;min-width:auto;display:flex;align-items:center;gap:8px;padding-top:22px">
+          <input type="checkbox" id="i-seasonon"><label class="f" for="i-seasonon" style="margin:0">Enable</label>
+        </div>
+        <div><label class="f">Reduction (%)</label><input type="number" id="i-seasonpct" value="30" min="0" max="100"></div>
+      </div>
+      <label class="f">Applies to months</label>
+      <div class="mchips" id="season-months"></div>
+    </div>
+  </div>
 
-        function runMonteCarlo(backlog, iterations = 10000) {
-            const results = [];
-            const septemberStartDate = new Date(2026, 8, 1);
-            const sprintLength = 14;
-            const eoyDate = new Date(2026, 11, 31);
-            
-            for (let sim = 0; sim < iterations; sim++) {
-                let remaining = backlog;
-                let sprintNum = 0;
-                let completionDate = null;
-                let itemsDeliveredByEOY = 0;
-                let totalDelivered = 0;
-                
-                while (remaining > 0 && sprintNum < 200) {
-                    const currentDate = new Date(septemberStartDate);
-                    currentDate.setDate(currentDate.getDate() + sprintNum * sprintLength);
-                    
-                    const month = currentDate.getMonth();
-                    let velocity;
-                    
-                    // September: 25% capacity reduction
-                    if (month === 8 && sprintNum === 0) {
-                        velocity = Math.round(velocities[Math.floor(Math.random() * velocities.length)] * 0.75 * 10) / 10;
-                    } 
-                    // December: minimum velocity
-                    else if (month === 11) {
-                        velocity = Math.min(...velocities);
-                    } 
-                    // Other months: random from historical data
-                    else {
-                        velocity = velocities[Math.floor(Math.random() * velocities.length)];
-                    }
-                    
-                    totalDelivered += velocity;
-                    remaining -= velocity;
-                    
-                    // Track items delivered by EOY
-                    if (currentDate <= eoyDate) {
-                        itemsDeliveredByEOY = Math.min(totalDelivered, backlog);
-                    }
-                    
-                    // Record completion date when backlog is cleared
-                    if (remaining <= 0) {
-                        completionDate = new Date(currentDate);
-                    }
-                    
-                    sprintNum++;
-                }
-                
-                results.push({
-                    completionDate: completionDate || new Date(2027, 11, 31),
-                    itemsDeliveredByEOY,
-                    daysFromStart: completionDate ? Math.round((completionDate - septemberStartDate) / (1000 * 60 * 60 * 24)) : 500
-                });
-            }
-            
-            return results;
-        }
+  <h3>Team availability by month</h3>
+  <p class="note">Add any month and set the share of capacity that will be unavailable — holidays, onboarding, support rotations. Throughput in that month is multiplied by (1 − absence). Tick “floor at min” to force that month down to the lowest historical delivery rate instead.</p>
+  <div class="scroll" style="max-height:320px">
+    <table>
+      <thead><tr><th class="txt">Month</th><th>Absence rate (%)</th><th>Floor at min historical</th><th class="txt">Note</th><th></th></tr></thead>
+      <tbody id="t-cal"></tbody>
+    </table>
+  </div>
+  <div style="margin-top:.75rem;display:flex;gap:8px;flex-wrap:wrap">
+    <button class="act" onclick="addCal()">Add month</button>
+    <button class="act" onclick="resetCal()">Reset to defaults</button>
+  </div>
 
-        function formatDate(date) {
-            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            return months[date.getMonth()] + ' ' + date.getDate() + ', ' + date.getFullYear();
-        }
+  <h3>Domain understanding multipliers</h3>
+  <p class="note">Weak understanding of a domain means the real item count tends to land above the estimate. These multipliers stretch the min/max range you enter for each epic.</p>
+  <table style="max-width:560px">
+    <thead><tr><th class="txt">Understanding</th><th>Min multiplier</th><th>Max multiplier</th></tr></thead>
+    <tbody id="t-understanding"></tbody>
+  </table>
+</section>
 
-        function updateDisplay(backlog) {
-            document.getElementById('backlog-display').textContent = Math.round(backlog);
-            
-            const results = runMonteCarlo(backlog);
-            
-            const sortedByDate = [...results].sort((a, b) => a.completionDate - b.completionDate);
-            const p85Index = Math.floor(results.length * 0.85);
-            const p95Index = Math.floor(results.length * 0.95);
-            const avgIndex = Math.floor(results.length * 0.50);
-            
-            const p85Date = sortedByDate[p85Index].completionDate;
-            const p95Date = sortedByDate[p95Index].completionDate;
-            const avgDate = sortedByDate[avgIndex].completionDate;
-            const eoyItems = Math.round(results.reduce((a, b) => a + b.itemsDeliveredByEOY, 0) / results.length);
-            
-            document.getElementById('p85-value').textContent = formatDate(p85Date);
-            document.getElementById('p95-value').textContent = formatDate(p95Date);
-            document.getElementById('avg-completion').textContent = formatDate(avgDate);
-            document.getElementById('eoy-items').textContent = eoyItems;
-            
-            // Create histogram data
-            const dateGroups = {};
-            results.forEach(r => {
-                const month = r.completionDate.getMonth();
-                const year = r.completionDate.getFullYear();
-                const key = year + '-' + month;
-                dateGroups[key] = (dateGroups[key] || 0) + 1;
-            });
-            
-            const sortedKeys = Object.keys(dateGroups).sort();
-            const labels = sortedKeys.map(k => {
-                const [year, month] = k.split('-');
-                const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                return months[parseInt(month)] + ' ' + year;
-            });
-            const values = sortedKeys.map(k => dateGroups[k]);
-            
-            // Destroy old chart if exists
-            if (chart) chart.destroy();
-            
-            // Create new chart
-            const canvas = document.getElementById('histogramChart');
-            canvas.style.display = 'block';
-            canvas.previousElementSibling.style.display = 'none';
-            
-            const ctx = canvas.getContext('2d');
-            chart = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels,
-                    datasets: [{
-                        label: 'Number of Simulations',
-                        data: values,
-                        backgroundColor: '#0066cc',
-                        borderColor: '#0052a3',
-                        borderWidth: 0,
-                        borderRadius: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { 
-                            display: false
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            ticks: { 
-                                color: '#666',
-                                font: { size: 12 }
-                            },
-                            grid: { 
-                                color: '#f0f0f0',
-                                drawBorder: false
-                            }
-                        },
-                        x: {
-                            ticks: { 
-                                color: '#666',
-                                font: { size: 12 }
-                            },
-                            grid: { 
-                                display: false,
-                                drawBorder: false
-                            }
-                        }
-                    }
-                }
-            });
-        }
+<!-- ================= BACKLOG FORECAST ================= -->
+<section class="pane" id="p-backlog">
+  <h2>Backlog forecast</h2>
+  <p class="note">When will a flat backlog of work items be finished, and how much lands by the checkpoint date?</p>
 
-        function updateBacklog(newBacklog) {
-            updateDisplay(newBacklog);
-        }
+  <div class="grid g4" style="margin-bottom:1.5rem">
+    <div class="card kpi"><div class="lab">85% confidence</div><div class="val warn" id="b-k85">—</div><div class="hint">completion date</div></div>
+    <div class="card kpi"><div class="lab">95% confidence</div><div class="val bad" id="b-k95">—</div><div class="hint">completion date</div></div>
+    <div class="card kpi"><div class="lab">50% confidence</div><div class="val good" id="b-k50">—</div><div class="hint">coin flip — do not quote</div></div>
+    <div class="card kpi"><div class="lab">Delivered by checkpoint</div><div class="val" id="b-eoy">—</div><div class="hint" id="b-eoyhint">at 85% confidence</div></div>
+  </div>
 
-        // Initialize on page load
-        window.addEventListener('load', () => {
-            updateDisplay(62);
-        });
-    </script>
+  <div class="grid g2">
+    <div>
+      <h3>Scope</h3>
+      <div class="row">
+        <div><label class="f">Backlog size (low)</label><input type="number" id="i-blow" value="62" min="0"></div>
+        <div><label class="f">Backlog size (high)</label><input type="number" id="i-bhigh" value="62" min="0"></div>
+      </div>
+      <div class="row">
+        <div><label class="f">Scope expansion (%)</label><input type="number" id="i-expand" value="0" min="0" max="200" step="5"></div>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+        <button class="mini" onclick="setExpand(0)">0%</button>
+        <button class="mini" onclick="setExpand(20)">+20%</button>
+        <button class="mini" onclick="setExpand(25)">+25%</button>
+        <button class="mini" onclick="setExpand(30)">+30%</button>
+      </div>
+      <div class="row">
+        <div><label class="f">Split rate (low)</label><input type="number" id="i-splitlow" value="1" step="0.05" min="0"></div>
+        <div><label class="f">Split rate (high)</label><input type="number" id="i-splithigh" value="1" step="0.05" min="0"></div>
+      </div>
+      <p class="tiny">Split rate accounts for items breaking into more items once work starts. Leave at 1 / 1 to disable.</p>
+    </div>
+    <div>
+      <h3>Delivery rate</h3>
+      <div class="row">
+        <div><label class="f">Historical throughput per sprint (comma separated)</label><input type="text" id="i-bsamples" value="5,4,4,5,6,4,2,3,2,5,6"></div>
+      </div>
+      <div class="row">
+        <div><label class="f">Team focus on this work</label><select id="i-bfocus"></select></div>
+      </div>
+      <table id="t-bstats" style="max-width:420px"></table>
+      <p class="tiny">Each sprint draws one value at random from these samples, then applies focus, monthly availability and any seasonal reduction.</p>
+    </div>
+  </div>
+
+  <div id="b-msg"></div>
+
+  <h3>Completion date by confidence level</h3>
+  <div class="grid g2">
+    <div>
+      <div class="scroll" style="max-height:380px">
+        <table>
+          <thead><tr><th class="txt">Confidence</th><th>Sprints</th><th class="txt">Date</th></tr></thead>
+          <tbody id="t-bresults"></tbody>
+        </table>
+      </div>
+    </div>
+    <div>
+      <div class="chartbox"><canvas id="c-bhist"></canvas></div>
+      <p class="tiny">Distribution of completion dates across all simulations.</p>
+    </div>
+  </div>
+
+  <h3>Items delivered by checkpoint</h3>
+  <table style="max-width:520px">
+    <thead><tr><th class="txt">Confidence</th><th>Items delivered</th><th>% of backlog</th></tr></thead>
+    <tbody id="t-beoy"></tbody>
+  </table>
+
+  <h3>Forecast burndown</h3>
+  <div class="chartbox"><canvas id="c-bburn"></canvas></div>
+</section>
+
+<!-- ================= EPIC FORECAST ================= -->
+<section class="pane" id="p-epics">
+  <h2>Epic forecast</h2>
+  <p class="note">Epics are delivered in the order listed. The model asks a different question from the backlog tab: <strong>where does the cut line fall</strong> — which epics realistically land before the deadline.</p>
+
+  <div class="grid g4" style="margin-bottom:1.5rem">
+    <div class="card kpi"><div class="lab">All epics by deadline</div><div class="val" id="e-kall">—</div><div class="hint">probability</div></div>
+    <div class="card kpi"><div class="lab">Cut line at 85%</div><div class="val" id="e-kcut">—</div><div class="hint">epics that fit</div></div>
+    <div class="card kpi"><div class="lab">Items by deadline</div><div class="val" id="e-kitems">—</div><div class="hint">at 85% confidence</div></div>
+    <div class="card kpi"><div class="lab">Total scope</div><div class="val" id="e-kscope">—</div><div class="hint">items, 85th percentile</div></div>
+  </div>
+
+  <div class="grid g2">
+    <div>
+      <h3>Delivery rate for this work</h3>
+      <div class="row">
+        <div><label class="f">Historical throughput per sprint</label><input type="text" id="i-esamples" value="3,4,5,4,2,7,4,5"></div>
+      </div>
+      <div class="row">
+        <div><label class="f">Team focus on the epics</label><select id="i-efocus"></select></div>
+        <div><label class="f">Split rate (low / high)</label>
+          <div style="display:flex;gap:6px">
+            <input type="number" id="i-esplitlow" value="1" step="0.05" min="0">
+            <input type="number" id="i-esplithigh" value="1" step="0.05" min="0">
+          </div>
+        </div>
+      </div>
+      <table id="t-estats" style="max-width:420px"></table>
+    </div>
+    <div>
+      <h3>What the deadline allows</h3>
+      <div id="e-window" class="infobox"></div>
+      <div id="e-msg"></div>
+    </div>
+  </div>
+
+  <h3>Epics</h3>
+  <p class="note">Min and max are your estimate of how many work items each epic contains. Understanding of the domain stretches that range using the multipliers on the Global parameters tab.</p>
+  <div class="scroll">
+    <table>
+      <thead><tr>
+        <th class="txt">Order</th><th class="txt">Epic</th><th>Min items</th><th>Max items</th>
+        <th class="txt">Domain understanding</th><th>Modelled items</th><th class="txt">85% date</th>
+        <th>P(by deadline)</th><th></th>
+      </tr></thead>
+      <tbody id="t-epics"></tbody>
+    </table>
+  </div>
+  <div style="margin-top:.75rem;display:flex;gap:8px;flex-wrap:wrap">
+    <button class="act" onclick="addEpic()">Add epic</button>
+    <button class="act" onclick="resetEpics()">Reset to defaults</button>
+    <button class="act" onclick="exportEpicCSV()">Export simulation CSV</button>
+  </div>
+
+  <h3>Confidence of finishing each epic by the deadline</h3>
+  <div class="chartbox"><canvas id="c-eprob"></canvas></div>
+
+  <h3>Completion dates by confidence level</h3>
+  <div class="scroll">
+    <table>
+      <thead><tr><th class="txt">Epic</th><th class="txt">50%</th><th class="txt">85%</th><th class="txt">95%</th><th>Cumulative items (85th pct)</th></tr></thead>
+      <tbody id="t-edates"></tbody>
+    </table>
+  </div>
+
+  <h3>Cumulative delivery against the deadline</h3>
+  <div class="chartbox"><canvas id="c-eburn"></canvas></div>
+</section>
+
+<!-- ================= METHOD ================= -->
+<section class="pane" id="p-method">
+  <h2>Method and assumptions</h2>
+  <h3>How a single simulated trial runs</h3>
+  <ul class="info">
+    <li>Scope is drawn at random from the range you entered, then multiplied by a random split rate between your low and high bounds.</li>
+    <li>For epics, each epic's item count is drawn independently between its min and max, after the domain understanding multipliers stretch that range.</li>
+    <li>Each sprint draws one throughput value at random from your historical samples. Historical data already contains good sprints and bad ones, which is what produces the spread.</li>
+    <li>That draw is multiplied by team focus, then by the availability factor for the month the sprint starts in, then by the seasonal reduction if that month is ticked.</li>
+    <li>A month flagged “floor at min historical” ignores the random draw and uses the lowest value in your sample set instead.</li>
+    <li>Capacity is consumed against epics in priority order; leftover capacity within a sprint flows to the next epic.</li>
+    <li>The trial ends when scope reaches zero. Thousands of trials produce the distribution the percentiles are read from.</li>
+  </ul>
+  <h3>Reading the numbers</h3>
+  <ul class="info">
+    <li><strong>85% confidence</strong> means 85 out of 100 simulated trials finished on or before that date. This is the number to commit to.</li>
+    <li><strong>95%</strong> is the conservative commitment used where missing the date is expensive.</li>
+    <li><strong>50%</strong> is a coin flip. It is shown for reference only and should never be quoted as a plan.</li>
+    <li>The cut line is the last epic whose 85% date still lands on or before the deadline. Everything below it is at genuine risk.</li>
+  </ul>
+  <h3>Known limits</h3>
+  <ul class="info">
+    <li>Historical throughput is assumed to remain representative. A reorganisation, a new domain or a team change invalidates it.</li>
+    <li>Dependencies between epics are not modelled. If epic 4 blocks epic 2, the real answer is worse than this shows.</li>
+    <li>Items are treated as interchangeable units of delivery. Throughput forecasting works because item sizes average out over a sprint, not because they are equal.</li>
+    <li>The month of a sprint is taken from its start date.</li>
+  </ul>
+</section>
+
+</main>
+</div>
+
+<script>
+/* ---------------- reference tables ---------------- */
+const FOCUS=[["100% (only this work)",1],["75% (mostly this work)",.75],["50% (half this work)",.5],["25% (some of this work)",.25]];
+const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+let UNDERSTANDING=[["Good",1,1],["Medium",1,1.5],["Weak",1.5,2]];
+const MAXSPRINTS=80;
+
+let cal=[
+  {month:"2026-09",absence:25,useMin:false,note:"25% of capacity unavailable"},
+  {month:"2026-12",absence:0,useMin:true,note:"December at minimum historical rate"}
+];
+let epics=[
+  {name:"Epic 1",min:4,max:6,und:"Good"},
+  {name:"Epic 2",min:3,max:5,und:"Good"},
+  {name:"Epic 3",min:3,max:4,und:"Medium"},
+  {name:"Epic 4",min:3,max:5,und:"Medium"},
+  {name:"Epic 5",min:4,max:7,und:"Medium"},
+  {name:"Epic 6",min:4,max:8,und:"Medium"}
+];
+let seasonMonths=[11];
+let charts={},B=null,E=null;
+
+/* ---------------- helpers ---------------- */
+const $=id=>document.getElementById(id);
+const ri=(a,b)=>a>=b?a:Math.floor(Math.random()*(b-a+1))+a;
+const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:NaN;
+function pct(s,p){const n=s.length;if(!n)return NaN;const r=p*(n-1),lo=Math.floor(r),hi=Math.ceil(r);return lo===hi?s[lo]:s[lo]+(r-lo)*(s[hi]-s[lo]);}
+function addDays(d,n){const x=new Date(d.getTime());x.setDate(x.getDate()+n);return x;}
+function fmtDate(d){return d?d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}):"—";}
+function mKey(d){return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");}
+function parseList(s){return s.split(",").map(x=>parseFloat(x.trim())).filter(v=>!isNaN(v)&&v>=0);}
+
+/* ---------------- global parameters ---------------- */
+function G(){
+  const start=$("i-start").value?new Date($("i-start").value+"T00:00:00"):new Date(2026,8,1);
+  const deadline=$("i-deadline").value?new Date($("i-deadline").value+"T00:00:00"):new Date(2026,11,31);
+  return{
+    start,deadline,
+    len:Math.max(1,+$("i-sprintlen").value||14),
+    trials:Math.max(100,Math.min(50000,+$("i-trials").value||5000)),
+    seasonOn:$("i-seasonon").checked,
+    seasonPct:Math.max(0,Math.min(100,+$("i-seasonpct").value||0))
+  };
+}
+/* capacity factor for the month a sprint starts in */
+function capFor(date,g){
+  const row=cal.find(r=>r.month===mKey(date));
+  let f=1,useMin=false;
+  if(row){f*=Math.max(0,1-(+row.absence||0)/100);useMin=!!row.useMin;}
+  if(g.seasonOn&&seasonMonths.includes(date.getMonth()))f*=Math.max(0,1-g.seasonPct/100);
+  return{f,useMin};
+}
+function drawTP(samples,useMin){
+  if(!samples.length)return 0;
+  return useMin?Math.min(...samples):samples[ri(0,samples.length-1)];
+}
+function sprintsInWindow(g){
+  let n=0;
+  while(n<MAXSPRINTS&&addDays(g.start,(n+1)*g.len)<=g.deadline)n++;
+  return n;
+}
+
+/* ---------------- backlog simulation ---------------- */
+function simBacklog(){
+  const g=G();
+  const samples=parseList($("i-bsamples").value);
+  const focus=(FOCUS.find(f=>f[0]===$("i-bfocus").value)||FOCUS[0])[1];
+  const expand=1+(+$("i-expand").value||0)/100;
+  const lo=Math.round((+$("i-blow").value||0)*expand),hi=Math.round((+$("i-bhigh").value||0)*expand);
+  const spLo=+$("i-splitlow").value||1,spHi=+$("i-splithigh").value||1;
+  const sprints=[],byCheck=[],burn=[],scopes=[];
+  let over=0;
+
+  for(let t=0;t<g.trials;t++){
+    let scope=Math.ceil(ri(Math.min(lo,hi),Math.max(lo,hi))*(Math.random()*(spHi-spLo)+spLo));
+    scopes.push(scope);
+    let rem=scope,done=null,delivered=0;
+    const path=[scope];
+    for(let s=0;s<MAXSPRINTS;s++){
+      const sStart=addDays(g.start,s*g.len),sEnd=addDays(g.start,(s+1)*g.len);
+      const c=capFor(sStart,g);
+      const cap=drawTP(samples,c.useMin)*focus*c.f;
+      const took=Math.min(rem,cap);
+      rem-=took;
+      if(sEnd<=g.deadline)delivered+=took;
+      path.push(rem);
+      if(rem<=1e-9){done=s+1;break;}
+    }
+    if(done===null)over++;
+    sprints.push(done);
+    byCheck.push(Math.min(delivered,scope));
+    if(burn.length<400)burn.push(path);
+  }
+  return{g,samples,focus,lo,hi,scopes,
+    fin:sprints.filter(x=>x!==null).sort((a,b)=>a-b),
+    sprints,byCheck:byCheck.sort((a,b)=>a-b),burn,over};
+}
+
+/* ---------------- epic simulation ---------------- */
+function simEpics(){
+  const g=G();
+  const samples=parseList($("i-esamples").value);
+  const focus=(FOCUS.find(f=>f[0]===$("i-efocus").value)||FOCUS[0])[1];
+  const spLo=+$("i-esplitlow").value||1,spHi=+$("i-esplithigh").value||1;
+  const n=epics.length;
+  const doneSprint=Array.from({length:n},()=>[]);
+  const perEpicItems=Array.from({length:n},()=>[]);
+  const totals=[],byDead=[],allBy=[],cum=Array.from({length:n},()=>[]);
+  const rows=[];
+
+  for(let t=0;t<g.trials;t++){
+    const counts=epics.map(e=>{
+      const u=UNDERSTANDING.find(x=>x[0]===e.und)||UNDERSTANDING[0];
+      const a=Math.max(0,Math.round((+e.min||0)*u[1])),b=Math.max(0,Math.round((+e.max||0)*u[2]));
+      return Math.ceil(ri(Math.min(a,b),Math.max(a,b))*(Math.random()*(spHi-spLo)+spLo));
+    });
+    counts.forEach((c,i)=>perEpicItems[i].push(c));
+    const total=counts.reduce((a,b)=>a+b,0);totals.push(total);
+    let running=0;
+    counts.forEach((c,i)=>{running+=c;cum[i].push(running);});
+
+    const rem=counts.slice(),fin=new Array(n).fill(null);
+    let delivered=0;
+    for(let s=0;s<MAXSPRINTS;s++){
+      const sStart=addDays(g.start,s*g.len),sEnd=addDays(g.start,(s+1)*g.len);
+      const c=capFor(sStart,g);
+      let cap=drawTP(samples,c.useMin)*focus*c.f;
+      for(let i=0;i<n&&cap>1e-9;i++){
+        if(rem[i]<=1e-9)continue;
+        const take=Math.min(rem[i],cap);
+        rem[i]-=take;cap-=take;
+        if(sEnd<=g.deadline)delivered+=take;
+        if(rem[i]<=1e-9)fin[i]=s+1;
+      }
+      if(rem.every(v=>v<=1e-9))break;
+    }
+    fin.forEach((v,i)=>doneSprint[i].push(v));
+    byDead.push(delivered);
+    const maxSprintInWindow=sprintsInWindow(g);
+    allBy.push(fin.every(v=>v!==null&&v<=maxSprintInWindow)?1:0);
+    if(rows.length<200)rows.push({counts,fin});
+  }
+
+  const window_=sprintsInWindow(g);
+  const per=epics.map((e,i)=>{
+    const f=doneSprint[i].filter(v=>v!==null).sort((a,b)=>a-b);
+    const p=doneSprint[i].filter(v=>v!==null&&v<=window_).length/g.trials;
+    const items=perEpicItems[i].slice().sort((a,b)=>a-b);
+    return{
+      name:e.name,prob:p,
+      s50:Math.round(pct(f,.5)),s85:Math.round(pct(f,.85)),s95:Math.round(pct(f,.95)),
+      i50:Math.round(pct(items,.5)),i85:Math.round(pct(items,.85)),
+      cum85:Math.round(pct(cum[i].slice().sort((a,b)=>a-b),.85)),
+      incomplete:doneSprint[i].filter(v=>v===null).length
+    };
+  });
+  return{g,samples,focus,per,window_,rows,
+    totals:totals.sort((a,b)=>a-b),
+    byDead:byDead.sort((a,b)=>a-b),
+    allProb:avg(allBy)};
+}
+
+/* ---------------- rendering: parameters ---------------- */
+function renderCal(){
+  $("t-cal").innerHTML=cal.length?cal.map((r,i)=>`<tr>
+    <td class="txt"><input type="month" value="${r.month}" onchange="setCal(${i},'month',this.value)"></td>
+    <td><input type="number" min="0" max="100" value="${r.absence}" oninput="setCal(${i},'absence',this.value)"></td>
+    <td style="text-align:center"><input type="checkbox" ${r.useMin?"checked":""} onchange="setCal(${i},'useMin',this.checked)"></td>
+    <td class="txt"><input type="text" value="${(r.note||"").replace(/"/g,"&quot;")}" oninput="setCal(${i},'note',this.value)"></td>
+    <td><button class="mini" onclick="delCal(${i})">✕</button></td></tr>`).join("")
+    :'<tr><td colspan="5" class="txt">No months configured — full capacity assumed throughout.</td></tr>';
+}
+function setCal(i,k,v){cal[i][k]=(k==="absence")?+v:v;run();}
+function addCal(){cal.push({month:"2027-01",absence:0,useMin:false,note:""});run();}
+function delCal(i){cal.splice(i,1);run();}
+function resetCal(){cal=[{month:"2026-09",absence:25,useMin:false,note:"25% of capacity unavailable"},
+  {month:"2026-12",absence:0,useMin:true,note:"December at minimum historical rate"}];run();}
+
+function renderUnderstanding(){
+  $("t-understanding").innerHTML=UNDERSTANDING.map((u,i)=>`<tr>
+    <td class="txt">${u[0]}</td>
+    <td><input type="number" step="0.05" min="0" value="${u[1]}" oninput="setUnd(${i},1,this.value)"></td>
+    <td><input type="number" step="0.05" min="0" value="${u[2]}" oninput="setUnd(${i},2,this.value)"></td></tr>`).join("");
+}
+function setUnd(i,k,v){UNDERSTANDING[i][k]=+v||0;run();}
+
+function renderSeasonChips(){
+  $("season-months").innerHTML=MONTHS.map((m,i)=>
+    `<label><input type="checkbox" ${seasonMonths.includes(i)?"checked":""} onchange="toggleSeason(${i},this.checked)">${m}</label>`).join("");
+}
+function toggleSeason(i,on){
+  if(on){if(!seasonMonths.includes(i))seasonMonths.push(i);}
+  else seasonMonths=seasonMonths.filter(x=>x!==i);
+  run();
+}
+
+/* ---------------- rendering: backlog ---------------- */
+function renderBacklog(){
+  const g=B.g,f=B.fin;
+  const dateFor=s=>addDays(g.start,s*g.len);
+  $("b-k85").textContent=f.length?fmtDate(dateFor(Math.round(pct(f,.85)))):"—";
+  $("b-k95").textContent=f.length?fmtDate(dateFor(Math.round(pct(f,.95)))):"—";
+  $("b-k50").textContent=f.length?fmtDate(dateFor(Math.round(pct(f,.5)))):"—";
+  $("b-eoy").textContent=Math.floor(pct(B.byCheck,.15));
+  $("b-eoyhint").textContent="by "+fmtDate(g.deadline)+" at 85% confidence";
+
+  const s=B.samples;
+  $("t-bstats").innerHTML=s.length?`
+    <tr><td class="txt">Samples</td><td>${s.length}</td></tr>
+    <tr><td class="txt">Average</td><td>${avg(s).toFixed(2)}</td></tr>
+    <tr><td class="txt">Min / max</td><td>${Math.min(...s)} / ${Math.max(...s)}</td></tr>
+    <tr><td class="txt">Effective avg after focus</td><td>${(avg(s)*B.focus).toFixed(2)}</td></tr>`:"";
+
+  let msg="";
+  if(!s.length)msg+='<div class="warnbox">No throughput samples entered — nothing can be delivered.</div>';
+  if(B.over)msg+=`<div class="warnbox">${(B.over/g.trials*100).toFixed(1)}% of trials did not finish within ${MAXSPRINTS} sprints. High-confidence rows are “at least” values.</div>`;
+  const p85=f.length?dateFor(Math.round(pct(f,.85))):null;
+  if(p85&&p85>g.deadline)msg+=`<div class="warnbox">The 85% date falls after ${fmtDate(g.deadline)}. Finishing the whole backlog by the checkpoint is not a realistic commitment at this delivery rate.</div>`;
+  else if(p85)msg+=`<div class="okbox">The 85% date lands on or before ${fmtDate(g.deadline)}.</div>`;
+  $("b-msg").innerHTML=msg;
+
+  const lv=[1,.95,.9,.85,.8,.75,.7,.6,.5,.4,.3,.2,.1,0];
+  $("t-bresults").innerHTML=lv.map(L=>{
+    const sp=Math.round(pct(f,L));
+    const cls=L===.85?' class="hl"':L===.95?' class="hl2"':"";
+    return `<tr${cls}><td class="txt">${Math.round(L*100)}%</td><td>${isNaN(sp)?"—":sp}</td><td class="txt">${isNaN(sp)?"—":fmtDate(dateFor(sp))}</td></tr>`;
+  }).join("");
+
+  const scope=avg(B.scopes);
+  $("t-beoy").innerHTML=[[.95,"hl2"],[.85,"hl"],[.5,""],[.05,""]].map(([c,cls])=>{
+    const v=Math.floor(pct(B.byCheck,1-c));
+    return `<tr${cls?' class="'+cls+'"':""}><td class="txt">${Math.round(c*100)}%</td><td>${v}</td><td>${(v/scope*100).toFixed(0)}%</td></tr>`;
+  }).join("");
+
+  // histogram
+  if(f.length){
+    const mn=f[0],mx=f[f.length-1],labels=[],vals=[];
+    for(let s=mn;s<=mx;s++){labels.push(fmtDate(dateFor(s)));vals.push(f.filter(x=>x===s).length);}
+    mkChart("c-bhist",{type:"bar",data:{labels,datasets:[{data:vals,backgroundColor:labels.map((_,i)=>dateFor(mn+i)<=g.deadline?"#137333":"#b3261e"),borderRadius:3}]},
+      options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+        tooltip:{callbacks:{label:c=>c.parsed.y+" of "+g.trials+" trials"}}},
+        scales:{y:{beginAtZero:true,ticks:TICK,grid:GRID},x:{ticks:TICK,grid:{display:false}}}}});
+  }
+  // burndown
+  const hz=Math.min(MAXSPRINTS,Math.max(6,Math.round(pct(f,.95))+2));
+  const lb=[],p50=[],p05=[],p95=[];
+  for(let c=0;c<=hz;c++){
+    lb.push(fmtDate(dateFor(c)));
+    const col=B.burn.map(r=>r[c]!==undefined?r[c]:0).sort((a,b)=>a-b);
+    p50.push(+pct(col,.5).toFixed(1));p05.push(+pct(col,.05).toFixed(1));p95.push(+pct(col,.95).toFixed(1));
+  }
+  mkChart("c-bburn",{type:"line",data:{labels:lb,datasets:[
+    {label:"95th percentile",data:p95,borderColor:"#b3261e",backgroundColor:"rgba(179,38,30,.07)",fill:"+2",tension:.2,pointRadius:0,borderWidth:1.5},
+    {label:"Median",data:p50,borderColor:"#0b5cad",tension:.2,pointRadius:0,borderWidth:2},
+    {label:"5th percentile",data:p05,borderColor:"#137333",tension:.2,pointRadius:0,borderWidth:1.5}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{boxWidth:12,font:{size:11}}}},
+      scales:{y:{beginAtZero:true,ticks:TICK,grid:GRID,title:{display:true,text:"Items remaining",color:"#6b7280"}},
+        x:{ticks:TICK,grid:{display:false}}}}});
+}
+
+/* ---------------- rendering: epics ---------------- */
+function renderEpics(){
+  const g=E.g,dateFor=s=>addDays(g.start,s*g.len);
+  $("e-kall").textContent=(E.allProb*100).toFixed(0)+"%";
+  $("e-kall").className="val "+(E.allProb>=.85?"good":E.allProb>=.5?"warn":"bad");
+  const cut=E.per.filter(p=>p.prob>=.85).length;
+  $("e-kcut").textContent=cut+" of "+epics.length;
+  $("e-kcut").className="val "+(cut===epics.length?"good":cut?"warn":"bad");
+  $("e-kitems").textContent=Math.floor(pct(E.byDead,.15));
+  $("e-kscope").textContent=Math.round(pct(E.totals,.85));
+
+  const s=E.samples;
+  $("t-estats").innerHTML=s.length?`
+    <tr><td class="txt">Samples</td><td>${s.length}</td></tr>
+    <tr><td class="txt">Average per sprint</td><td>${avg(s).toFixed(2)}</td></tr>
+    <tr><td class="txt">Min / max</td><td>${Math.min(...s)} / ${Math.max(...s)}</td></tr>
+    <tr><td class="txt">Effective avg after ${Math.round(E.focus*100)}% focus</td><td>${(avg(s)*E.focus).toFixed(2)}</td></tr>`:"";
+
+  const w=E.window_;
+  const capMonths=cal.map(c=>{
+    const [y,m]=c.month.split("-");
+    return MONTHS[+m-1]+" "+y+" — "+(c.useMin?"floored at min":c.absence+"% absent");
+  }).join("; ")||"no adjustments";
+  $("e-window").innerHTML=`<strong>${w} sprints</strong> of ${g.len} days fit between ${fmtDate(g.start)} and ${fmtDate(g.deadline)}.
+    Last sprint ends ${fmtDate(dateFor(w))}. Capacity adjustments: ${capMonths}.
+    Expected capacity in the window ≈ <strong>${expectedCapacity(E).toFixed(0)} items</strong>.`;
+
+  let msg="";
+  if(!s.length)msg+='<div class="warnbox">No throughput samples entered for the epic work.</div>';
+  const totalScope=Math.round(pct(E.totals,.85));
+  if(totalScope>expectedCapacity(E))
+    msg+=`<div class="warnbox">Scope at 85% confidence (${totalScope} items) exceeds expected capacity in the window (${expectedCapacity(E).toFixed(0)} items). Expect the cut line to bite.</div>`;
+  else msg+='<div class="okbox">Expected capacity covers the 85th-percentile scope.</div>';
+  $("e-msg").innerHTML=msg;
+
+  $("t-epics").innerHTML=epics.map((e,i)=>{
+    const p=E.per[i];
+    const cls=p.prob>=.85?"ok":p.prob>=.5?"mid":"no";
+    const d85=p.incomplete>E.g.trials*.5?"beyond horizon":fmtDate(dateFor(p.s85));
+    return `<tr>
+      <td class="txt">${i+1}
+        <button class="mini" onclick="moveEpic(${i},-1)">↑</button>
+        <button class="mini" onclick="moveEpic(${i},1)">↓</button></td>
+      <td class="txt"><input type="text" value="${e.name.replace(/"/g,"&quot;")}" oninput="setEpic(${i},'name',this.value)"></td>
+      <td><input type="number" min="0" value="${e.min}" oninput="setEpic(${i},'min',this.value)"></td>
+      <td><input type="number" min="0" value="${e.max}" oninput="setEpic(${i},'max',this.value)"></td>
+      <td class="txt"><select onchange="setEpic(${i},'und',this.value)">${UNDERSTANDING.map(u=>`<option ${u[0]===e.und?"selected":""}>${u[0]}</option>`).join("")}</select></td>
+      <td>${p.i50}–${p.i85}</td>
+      <td class="txt">${d85}</td>
+      <td class="${cls}">${(p.prob*100).toFixed(0)}%</td>
+      <td><button class="mini" onclick="delEpic(${i})">✕</button></td></tr>`;
+  }).join("");
+
+  $("t-edates").innerHTML=epics.map((e,i)=>{
+    const p=E.per[i];
+    const f=x=>x>MAXSPRINTS-1?"beyond horizon":fmtDate(dateFor(x));
+    return `<tr><td class="txt">${e.name}</td><td class="txt">${f(p.s50)}</td>
+      <td class="txt">${f(p.s85)}</td><td class="txt">${f(p.s95)}</td><td>${p.cum85}</td></tr>`;
+  }).join("");
+
+  mkChart("c-eprob",{type:"bar",data:{labels:epics.map(e=>e.name),
+    datasets:[{data:E.per.map(p=>+(p.prob*100).toFixed(1)),
+      backgroundColor:E.per.map(p=>p.prob>=.85?"#137333":p.prob>=.5?"#e8a33d":"#b3261e"),borderRadius:3}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},
+      tooltip:{callbacks:{label:c=>c.parsed.y+"% of trials finished by "+fmtDate(g.deadline)}}},
+      scales:{y:{beginAtZero:true,max:100,ticks:{...TICK,callback:v=>v+"%"},grid:GRID,
+        title:{display:true,text:"Probability of completing by deadline",color:"#6b7280"}},
+        x:{ticks:TICK,grid:{display:false}}}}});
+
+  const hz=Math.max(E.window_+3,Math.min(MAXSPRINTS,Math.max(...E.per.map(p=>p.s95))+1));
+  const lb=[],line=[];
+  for(let c=0;c<=hz;c++)lb.push(fmtDate(dateFor(c)));
+  const marks=E.per.map((p,i)=>({x:p.s85,y:p.cum85,n:epics[i].name}));
+  let idx=0,acc=0;
+  for(let c=0;c<=hz;c++){
+    while(idx<marks.length&&marks[idx].x<=c){acc=marks[idx].y;idx++;}
+    line.push(acc);
+  }
+  const inWin=lb.map((_,i)=>addDays(g.start,i*g.len)<=g.deadline);
+  mkChart("c-eburn",{type:"line",data:{labels:lb,datasets:[
+    {label:"Cumulative items delivered (85% confidence)",data:line,borderColor:"#0b5cad",
+      backgroundColor:"rgba(11,92,173,.10)",fill:true,stepped:true,pointRadius:0,borderWidth:2,
+      segment:{borderColor:c=>inWin[c.p1DataIndex]?"#0b5cad":"#b3261e"}}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{boxWidth:12,font:{size:11}}},
+        tooltip:{callbacks:{afterLabel:c=>{
+          const m=marks.find(m=>fmtDate(addDays(g.start,m.x*g.len))===c.label);
+          return m?m.n+" completes here":"";}}}},
+      scales:{y:{beginAtZero:true,ticks:TICK,grid:GRID,title:{display:true,text:"Items delivered",color:"#6b7280"}},
+        x:{ticks:TICK,grid:{display:false}}}}});
+}
+
+function expectedCapacity(sim){
+  const g=sim.g,s=sim.samples;
+  if(!s.length)return 0;
+  let cap=0;
+  for(let i=0;i<sim.window_;i++){
+    const st=addDays(g.start,i*g.len),c=capFor(st,g);
+    cap+=(c.useMin?Math.min(...s):avg(s))*sim.focus*c.f;
+  }
+  return cap;
+}
+
+/* ---------------- epic editing ---------------- */
+function setEpic(i,k,v){epics[i][k]=(k==="min"||k==="max")?+v:v;run();}
+function addEpic(){epics.push({name:"Epic "+(epics.length+1),min:3,max:5,und:"Medium"});run();}
+function delEpic(i){epics.splice(i,1);run();}
+function moveEpic(i,d){const j=i+d;if(j<0||j>=epics.length)return;[epics[i],epics[j]]=[epics[j],epics[i]];run();}
+function resetEpics(){epics=[{name:"Epic 1",min:4,max:6,und:"Good"},{name:"Epic 2",min:3,max:5,und:"Good"},
+  {name:"Epic 3",min:3,max:4,und:"Medium"},{name:"Epic 4",min:3,max:5,und:"Medium"},
+  {name:"Epic 5",min:4,max:7,und:"Medium"},{name:"Epic 6",min:4,max:8,und:"Medium"}];run();}
+function setExpand(v){$("i-expand").value=v;run();}
+
+function exportEpicCSV(){
+  const g=E.g;
+  let out="Trial,"+epics.map(e=>`"${e.name} items"`).join(",")+","+epics.map(e=>`"${e.name} sprint"`).join(",")+"\n";
+  E.rows.forEach((r,i)=>{out+=[i+1,...r.counts,...r.fin.map(v=>v??"")].join(",")+"\n";});
+  out+="\nEpic,P(by deadline),50% date,85% date,95% date\n";
+  E.per.forEach(p=>{out+=[`"${p.name}"`,(p.prob*100).toFixed(1)+"%",
+    fmtDate(addDays(g.start,p.s50*g.len)),fmtDate(addDays(g.start,p.s85*g.len)),
+    fmtDate(addDays(g.start,p.s95*g.len))].join(",")+"\n";});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([out],{type:"text/csv"}));
+  a.download="epic_forecast.csv";a.click();URL.revokeObjectURL(a.href);
+}
+
+/* ---------------- charts ---------------- */
+const GRID={color:"#eceef1"},TICK={color:"#6b7280",font:{size:11}};
+function mkChart(id,cfg){if(charts[id])charts[id].destroy();charts[id]=new Chart($(id).getContext("2d"),cfg);}
+
+/* ---------------- tabs ---------------- */
+const TABS=[["params","Global parameters"],["backlog","Backlog forecast"],["epics","Epic forecast"],["method","Method"]];
+$("nav").innerHTML=TABS.map(([id,l],i)=>`<button class="${i?"":"on"}" data-t="${id}">${l}</button>`).join("");
+$("nav").addEventListener("click",e=>{
+  const b=e.target.closest("button[data-t]");if(!b)return;
+  document.querySelectorAll("#nav button").forEach(x=>x.classList.remove("on"));
+  document.querySelectorAll(".pane").forEach(x=>x.classList.remove("on"));
+  b.classList.add("on");$("p-"+b.dataset.t).classList.add("on");
+});
+
+/* ---------------- boot ---------------- */
+function fillFocus(){
+  $("i-bfocus").innerHTML=FOCUS.map(f=>`<option>${f[0]}</option>`).join("");
+  $("i-efocus").innerHTML=FOCUS.map(f=>`<option ${f[1]===.75?"selected":""}>${f[0]}</option>`).join("");
+}
+function run(){
+  const g=G();
+  const w=sprintsInWindow(g);
+  $("o-sprintinfo").innerHTML=`<strong>${w} sprints</strong> of ${g.len} days fit between ${fmtDate(g.start)} and ${fmtDate(g.deadline)} — the last one ends ${fmtDate(addDays(g.start,w*g.len))}. Running <strong>${g.trials.toLocaleString()}</strong> simulations.`;
+  renderCal();renderUnderstanding();renderSeasonChips();
+  B=simBacklog();renderBacklog();
+  E=simEpics();renderEpics();
+}
+fillFocus();
+["i-start","i-sprintlen","i-deadline","i-trials","i-seasonon","i-seasonpct",
+ "i-blow","i-bhigh","i-expand","i-splitlow","i-splithigh","i-bsamples","i-bfocus",
+ "i-esamples","i-efocus","i-esplitlow","i-esplithigh"].forEach(id=>{
+  $(id).addEventListener("change",run);
+  if($(id).type==="number"||$(id).type==="text")$(id).addEventListener("input",run);
+});
+run();
+</script>
 </body>
 </html>
